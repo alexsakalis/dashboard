@@ -32,10 +32,14 @@ export function CreateWorkoutDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
-        <Plus className="mr-1 h-4 w-4" />
-        Log
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button size="sm">
+            <Plus className="mr-1 h-4 w-4" />
+            Log
+          </Button>
+        }
+      />
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>New Workout</DialogTitle>

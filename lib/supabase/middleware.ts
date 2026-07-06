@@ -1,7 +1,22 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAuthDisabled } from "@/lib/auth-config";
+import { isEmailAllowed } from "@/lib/auth";
 
 export async function updateSession(request: NextRequest) {
+  if (isAuthDisabled()) {
+    if (
+      request.nextUrl.pathname.startsWith("/login") ||
+      request.nextUrl.pathname.startsWith("/auth")
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -28,6 +43,14 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (user && !isEmailAllowed(user.email ?? "")) {
+    await supabase.auth.signOut();
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("error", "unauthorized");
+    return NextResponse.redirect(url);
+  }
 
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||

@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { addDays, startOfDay } from "date-fns";
 import { google } from "googleapis";
 import { decryptTokenSafe, encryptTokenSafe } from "@/lib/crypto";
 import type { FinanceEntry, Integration } from "@/types";
@@ -16,12 +16,48 @@ const SHEET_COLUMNS = [
   "sync_source",
 ] as const;
 
+function getRedirectUri(): string {
+  return `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/google/callback`;
+}
+
+export function getGoogleClientCredentials(): {
+  clientId: string;
+  clientSecret: string;
+} {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret || clientId.includes("your-")) {
+    throw new Error(
+      "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.local from Google Cloud Console.",
+    );
+  }
+  return { clientId, clientSecret };
+}
+
+export function isGoogleOAuthConfigured(): boolean {
+  try {
+    getGoogleClientCredentials();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function formatGoogleApiError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const lower = message.toLowerCase();
+  if (lower.includes("invalid_grant") || lower.includes("token has been expired")) {
+    return "Google session expired. Disconnect and reconnect Google in Settings.";
+  }
+  if (lower.includes("insufficient") || lower.includes("permission")) {
+    return "Google denied access. Reconnect and approve all requested permissions.";
+  }
+  return message;
+}
+
 function getOAuthClient() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/google/callback`,
-  );
+  const { clientId, clientSecret } = getGoogleClientCredentials();
+  return new google.auth.OAuth2(clientId, clientSecret, getRedirectUri());
 }
 
 export function getGoogleAuthUrl(state: string): string {
@@ -31,50 +67,50 @@ export function getGoogleAuthUrl(state: string): string {
     prompt: "consent",
     scope: [
       "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/calendar.events.readonly",
+      "https://www.googleapis.com/auth/calendar.readonly",
     ],
     state,
   });
 }
 
-export function getSheetsClient(integration: Integration) {
+function getAuthenticatedClient(integration: Integration) {
   const oauth2 = getOAuthClient();
   const refreshToken = integration.refresh_token_enc
     ? decryptTokenSafe(integration.refresh_token_enc)
     : null;
 
   if (!refreshToken) {
-    throw new Error("Google refresh token not configured");
+    throw new Error(
+      "Google OAuth session missing. Disconnect and connect again via Settings → Integrations.",
+    );
   }
 
   oauth2.setCredentials({ refresh_token: refreshToken });
-  return google.sheets({ version: "v4", auth: oauth2 });
+  return oauth2;
+}
+
+export function getSheetsClient(integration: Integration) {
+  return google.sheets({ version: "v4", auth: getAuthenticatedClient(integration) });
 }
 
 export function getCalendarClient(integration: Integration) {
-  const oauth2 = getOAuthClient();
-  const refreshToken = integration.refresh_token_enc
-    ? decryptTokenSafe(integration.refresh_token_enc)
-    : null;
-
-  if (!refreshToken) {
-    throw new Error("Google refresh token not configured");
-  }
-
-  oauth2.setCredentials({ refresh_token: refreshToken });
-  return google.calendar({ version: "v3", auth: oauth2 });
+  return google.calendar({ version: "v3", auth: getAuthenticatedClient(integration) });
 }
 
 export async function exchangeGoogleCode(code: string) {
-  const oauth2 = getOAuthClient();
-  const { tokens } = await oauth2.getToken(code);
-  return {
-    accessToken: tokens.access_token ?? null,
-    refreshToken: tokens.refresh_token ?? null,
-    expiresAt: tokens.expiry_date
-      ? new Date(tokens.expiry_date).toISOString()
-      : null,
-  };
+  try {
+    const oauth2 = getOAuthClient();
+    const { tokens } = await oauth2.getToken(code);
+    return {
+      accessToken: tokens.access_token ?? null,
+      refreshToken: tokens.refresh_token ?? null,
+      expiresAt: tokens.expiry_date
+        ? new Date(tokens.expiry_date).toISOString()
+        : null,
+    };
+  } catch (err) {
+    throw new Error(formatGoogleApiError(err));
+  }
 }
 
 function rowToEntry(
@@ -125,7 +161,9 @@ export async function pullFinanceFromSheet(
   userId: string,
 ): Promise<FinanceEntry[]> {
   const sheets = getSheetsClient(integration);
-  const spreadsheetId = integration.config.spreadsheet_id as string;
+  const spreadsheetId = extractSpreadsheetId(
+    integration.config.spreadsheet_id as string,
+  );
   const sheetName = (integration.config.sheet_name as string) || "Transactions";
 
   const response = await sheets.spreadsheets.values.get({
@@ -154,7 +192,9 @@ export async function pushFinanceToSheet(
   if (entries.length === 0) return 0;
 
   const sheets = getSheetsClient(integration);
-  const spreadsheetId = integration.config.spreadsheet_id as string;
+  const spreadsheetId = extractSpreadsheetId(
+    integration.config.spreadsheet_id as string,
+  );
   const sheetName = (integration.config.sheet_name as string) || "Transactions";
 
   const headerRow = [...SHEET_COLUMNS];
@@ -174,7 +214,9 @@ export async function pushFinanceToSheet(
 
 export async function ensureSheetHeaders(integration: Integration) {
   const sheets = getSheetsClient(integration);
-  const spreadsheetId = integration.config.spreadsheet_id as string;
+  const spreadsheetId = extractSpreadsheetId(
+    integration.config.spreadsheet_id as string,
+  );
   const sheetName = (integration.config.sheet_name as string) || "Transactions";
 
   const existing = await sheets.spreadsheets.values.get({
@@ -192,35 +234,89 @@ export async function ensureSheetHeaders(integration: Integration) {
   }
 }
 
-export async function fetchCalendarEvents(integration: Integration) {
-  const calendar = getCalendarClient(integration);
-  const calendarId =
-    (integration.config.calendar_id as string) || "primary";
-  const now = new Date();
-  const endOfWeek = new Date(now);
-  endOfWeek.setDate(endOfWeek.getDate() + 7);
+export function extractSpreadsheetId(input: string): string {
+  const trimmed = input.trim();
+  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return match?.[1] ?? trimmed;
+}
 
-  const response = await calendar.events.list({
-    calendarId,
-    timeMin: now.toISOString(),
-    timeMax: endOfWeek.toISOString(),
-    singleEvents: true,
-    orderBy: "startTime",
-    maxResults: 50,
-  });
+function mapGoogleEvent(
+  event: {
+    id?: string | null;
+    summary?: string | null;
+    start?: { dateTime?: string | null; date?: string | null } | null;
+    end?: { dateTime?: string | null; date?: string | null } | null;
+    location?: string | null;
+  },
+  calendarId: string,
+) {
+  const allDay = Boolean(event.start?.date && !event.start?.dateTime);
+  const startDate = event.start?.date ?? event.start?.dateTime?.slice(0, 10);
+  const endDate = event.end?.date ?? event.end?.dateTime?.slice(0, 10) ?? startDate;
 
-  return (response.data.items ?? []).map((event) => ({
-    external_id: event.id ?? crypto.randomUUID(),
+  return {
+    external_id: `${calendarId}:${event.id ?? crypto.randomUUID()}`,
     title: event.summary ?? "Untitled",
-    start_time:
-      event.start?.dateTime ??
-      `${event.start?.date}T00:00:00.000Z`,
-    end_time:
-      event.end?.dateTime ?? `${event.end?.date}T23:59:59.000Z`,
-    all_day: !event.start?.dateTime,
+    start_time: allDay
+      ? `${startDate}T12:00:00.000Z`
+      : (event.start?.dateTime ?? `${startDate}T12:00:00.000Z`),
+    end_time: allDay
+      ? `${endDate}T12:00:00.000Z`
+      : (event.end?.dateTime ?? `${endDate}T12:00:00.000Z`),
+    all_day: allDay,
     location: event.location ?? null,
     raw_payload: event,
-  }));
+  };
+}
+
+async function listCalendarIds(
+  calendar: ReturnType<typeof getCalendarClient>,
+  configuredId?: string,
+): Promise<string[]> {
+  if (configuredId && configuredId !== "all") {
+    return [configuredId];
+  }
+
+  try {
+    const response = await calendar.calendarList.list({ minAccessRole: "reader" });
+    const ids = (response.data.items ?? [])
+      .filter((cal) => cal.id && cal.selected !== false)
+      .map((cal) => cal.id!);
+
+    if (ids.length > 0) return ids;
+  } catch {
+    // Fall back to primary if calendar list is unavailable.
+  }
+
+  return ["primary"];
+}
+
+export async function fetchCalendarEvents(integration: Integration) {
+  const calendar = getCalendarClient(integration);
+  const configuredId = integration.config.calendar_id as string | undefined;
+  const calendarIds = await listCalendarIds(calendar, configuredId);
+
+  const timeMin = startOfDay(new Date()).toISOString();
+  const timeMax = addDays(startOfDay(new Date()), 14).toISOString();
+  const events = [];
+
+  for (const calendarId of calendarIds) {
+    const response = await calendar.events.list({
+      calendarId,
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: "startTime",
+      maxResults: 100,
+    });
+
+    for (const event of response.data.items ?? []) {
+      if (event.status === "cancelled") continue;
+      events.push(mapGoogleEvent(event, calendarId));
+    }
+  }
+
+  return events;
 }
 
 export { encryptTokenSafe };

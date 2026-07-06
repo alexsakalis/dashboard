@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  saveOuraToken,
   saveSpreadsheetConfig,
   disconnectIntegration,
+  syncOuraNow,
+  syncGoogleCalendarNow,
+  syncGoogleSheetsNow,
 } from "@/lib/actions/integrations";
 
 interface IntegrationSummary {
@@ -27,10 +28,14 @@ export function IntegrationsPanel({
   integrations,
   success,
   error,
+  ouraOAuthConfigured,
+  googleOAuthConfigured,
 }: {
   integrations: IntegrationSummary[];
   success?: string;
   error?: string;
+  ouraOAuthConfigured: boolean;
+  googleOAuthConfigured: boolean;
 }) {
   const oura = integrations.find((i) => i.provider === "oura");
   const google = integrations.find((i) => i.provider === "google");
@@ -44,7 +49,13 @@ export function IntegrationsPanel({
       {success === "google" && (
         <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-600">
           <CheckCircle2 className="h-4 w-4" />
-          Google connected successfully.
+          Google connected and calendar synced.
+        </div>
+      )}
+      {success === "oura" && (
+        <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-600">
+          <CheckCircle2 className="h-4 w-4" />
+          Oura connected and synced.
         </div>
       )}
       {error && (
@@ -54,8 +65,14 @@ export function IntegrationsPanel({
         </div>
       )}
 
-      <OuraCard integration={oura} />
-      <GoogleCard integration={google} />
+      <OuraCard
+        integration={oura}
+        oauthConfigured={ouraOAuthConfigured}
+      />
+      <GoogleCard
+        integration={google}
+        oauthConfigured={googleOAuthConfigured}
+      />
       <AppleHealthCard
         integration={appleHealth}
         syncUrl={healthSyncUrl}
@@ -64,20 +81,31 @@ export function IntegrationsPanel({
   );
 }
 
-function OuraCard({ integration }: { integration?: IntegrationSummary }) {
-  const [token, setToken] = useState("");
+function OuraCard({
+  integration,
+  oauthConfigured,
+}: {
+  integration?: IntegrationSummary;
+  oauthConfigured: boolean;
+}) {
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  function handleSave() {
-    startTransition(async () => {
-      await saveOuraToken(token);
-      setToken("");
-    });
-  }
 
   function handleDisconnect() {
     startTransition(async () => {
       await disconnectIntegration("oura");
+    });
+  }
+
+  function handleSync() {
+    setSyncMessage(null);
+    startTransition(async () => {
+      const result = await syncOuraNow();
+      if ("error" in result) {
+        setSyncMessage(result.error);
+      } else {
+        setSyncMessage(`Synced ${result.days} day(s) of data.`);
+      }
     });
   }
 
@@ -89,48 +117,102 @@ function OuraCard({ integration }: { integration?: IntegrationSummary }) {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Paste your Personal Access Token from{" "}
+          Connect via Oura OAuth. Create an app at{" "}
           <a
-            href="https://cloud.ouraring.com/personal-access-tokens"
+            href="https://cloud.ouraring.com/oauth/applications"
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
           >
-            Oura Cloud
-          </a>
-          .
+            Oura Cloud → API Applications
+          </a>{" "}
+          and add your Client ID + Secret to <code className="text-xs">.env.local</code>.
         </p>
         {!integration ? (
-          <>
-            <Input
-              type="password"
-              placeholder="Oura PAT"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-            />
-            <Button onClick={handleSave} disabled={!token || isPending} className="w-full">
-              {isPending ? "Saving..." : "Connect Oura"}
-            </Button>
-          </>
+          oauthConfigured ? (
+            <a
+              href="/api/oauth/oura"
+              className={cn(buttonVariants(), "w-full")}
+            >
+              Connect Oura
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </a>
+          ) : (
+            <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+              Add <code className="text-xs">OURA_CLIENT_ID</code> and{" "}
+              <code className="text-xs">OURA_CLIENT_SECRET</code> to{" "}
+              <code className="text-xs">.env.local</code>, then restart the dev
+              server. Redirect URI:{" "}
+              <code className="break-all text-xs">
+                {process.env.NEXT_PUBLIC_APP_URL}/api/oauth/oura/callback
+              </code>
+            </p>
+          )
         ) : (
-          <Button variant="outline" onClick={handleDisconnect} disabled={isPending}>
-            Disconnect
-          </Button>
+          <div className="space-y-2">
+            <Button
+              variant="secondary"
+              onClick={handleSync}
+              disabled={isPending}
+              className="w-full"
+            >
+              {isPending ? "Syncing..." : "Sync now"}
+            </Button>
+            {syncMessage && (
+              <p className="text-sm text-muted-foreground">{syncMessage}</p>
+            )}
+            <Button variant="outline" onClick={handleDisconnect} disabled={isPending}>
+              Disconnect
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
   );
 }
 
-function GoogleCard({ integration }: { integration?: IntegrationSummary }) {
+function GoogleCard({
+  integration,
+  oauthConfigured,
+}: {
+  integration?: IntegrationSummary;
+  oauthConfigured: boolean;
+}) {
   const [spreadsheetId, setSpreadsheetId] = useState(
     (integration?.config?.spreadsheet_id as string) ?? "",
   );
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const hasSpreadsheet = Boolean(integration?.config?.spreadsheet_id);
 
   function handleSaveSpreadsheet() {
+    setSyncMessage(null);
     startTransition(async () => {
       await saveSpreadsheetConfig(spreadsheetId);
+    });
+  }
+
+  function handleSyncCalendar() {
+    setSyncMessage(null);
+    startTransition(async () => {
+      const result = await syncGoogleCalendarNow();
+      if ("error" in result) {
+        setSyncMessage(result.error);
+      } else {
+        setSyncMessage(`Synced ${result.events} calendar event(s).`);
+      }
+    });
+  }
+
+  function handleSyncSheets() {
+    setSyncMessage(null);
+    startTransition(async () => {
+      const result = await syncGoogleSheetsNow();
+      if ("error" in result) {
+        setSyncMessage(result.error);
+      } else {
+        setSyncMessage(`Synced ${result.rows} finance row(s).`);
+      }
     });
   }
 
@@ -148,24 +230,53 @@ function GoogleCard({ integration }: { integration?: IntegrationSummary }) {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Connect for finance sync and calendar events. Sync iCloud Calendar to
-          Google on your iPhone for Apple Calendar support.
+          Connect for finance sync and calendar events. Create OAuth credentials in{" "}
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Google Cloud Console
+          </a>{" "}
+          and add your Client ID + Secret to{" "}
+          <code className="text-xs">.env.local</code>.
         </p>
         {!integration ? (
-          <Link
-            href="/api/oauth/google"
-            className={cn(buttonVariants(), "w-full")}
-          >
-            Connect Google
-            <ExternalLink className="ml-2 h-4 w-4" />
-          </Link>
+          oauthConfigured ? (
+            <a
+              href="/api/oauth/google"
+              className={cn(buttonVariants(), "w-full")}
+            >
+              Connect Google
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </a>
+          ) : (
+            <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+              Add <code className="text-xs">GOOGLE_CLIENT_ID</code> and{" "}
+              <code className="text-xs">GOOGLE_CLIENT_SECRET</code> to{" "}
+              <code className="text-xs">.env.local</code>, then restart the dev
+              server. Redirect URI:{" "}
+              <code className="break-all text-xs">
+                {process.env.NEXT_PUBLIC_APP_URL}/api/oauth/google/callback
+              </code>
+            </p>
+          )
         ) : (
           <>
+            <Button
+              variant="secondary"
+              onClick={handleSyncCalendar}
+              disabled={isPending}
+              className="w-full"
+            >
+              {isPending ? "Syncing..." : "Sync calendar"}
+            </Button>
             <div className="space-y-2">
               <Label htmlFor="spreadsheet_id">Spreadsheet ID</Label>
               <Input
                 id="spreadsheet_id"
-                placeholder="From Google Sheets URL"
+                placeholder="Paste ID or full Google Sheets URL"
                 value={spreadsheetId}
                 onChange={(e) => setSpreadsheetId(e.target.value)}
               />
@@ -178,6 +289,19 @@ function GoogleCard({ integration }: { integration?: IntegrationSummary }) {
                 Save Spreadsheet
               </Button>
             </div>
+            {hasSpreadsheet && (
+              <Button
+                variant="secondary"
+                onClick={handleSyncSheets}
+                disabled={isPending}
+                className="w-full"
+              >
+                {isPending ? "Syncing..." : "Sync finance sheet"}
+              </Button>
+            )}
+            {syncMessage && (
+              <p className="text-sm text-muted-foreground">{syncMessage}</p>
+            )}
             <Button variant="outline" onClick={handleDisconnect} disabled={isPending}>
               Disconnect
             </Button>

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
-import { exchangeGoogleCode } from "@/lib/integrations/google/client";
-import { saveGoogleIntegration } from "@/lib/actions/integrations";
+import { exchangeOuraCode } from "@/lib/integrations/oura/oauth";
+import { saveOuraIntegration } from "@/lib/actions/integrations";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   const cookieStore = await cookies();
-  const savedState = cookieStore.get("google_oauth_state")?.value;
+  const savedState = cookieStore.get("oura_oauth_state")?.value;
 
   if (!code || !state || state !== savedState) {
     return NextResponse.redirect(
@@ -28,27 +28,26 @@ export async function GET(request: Request) {
   try {
     await requireUser();
 
-    const tokens = await exchangeGoogleCode(code);
+    const tokens = await exchangeOuraCode(code);
     if (!tokens.refreshToken) {
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=no_refresh_token`,
       );
     }
 
-    await saveGoogleIntegration(
+    await saveOuraIntegration(
       tokens.refreshToken,
       tokens.accessToken,
       tokens.expiresAt,
-      { calendar_id: "all", sheet_name: "Transactions" },
     );
 
-    cookieStore.delete("google_oauth_state");
+    cookieStore.delete("oura_oauth_state");
 
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?success=google`,
+      `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?success=oura`,
     );
   } catch (err) {
-    console.error("Google OAuth callback error:", err);
+    console.error("Oura OAuth callback error:", err);
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=callback_failed`,
     );

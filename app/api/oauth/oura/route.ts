@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { getGoogleAuthUrl } from "@/lib/integrations/google/client";
+import { getOuraAuthUrl } from "@/lib/integrations/oura/oauth";
 
 export async function GET() {
   try {
     const state = crypto.randomUUID();
-    const url = getGoogleAuthUrl(state);
+    const url = getOuraAuthUrl(state);
 
     const response = NextResponse.redirect(url);
-    response.cookies.set("google_oauth_state", state, {
+    response.cookies.set("oura_oauth_state", state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -16,8 +16,7 @@ export async function GET() {
 
     return response;
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Google OAuth not configured";
+    const message = err instanceof Error ? err.message : "Oura OAuth not configured";
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=${encodeURIComponent(message)}`,
     );

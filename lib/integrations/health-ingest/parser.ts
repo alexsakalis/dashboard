@@ -130,6 +130,6 @@ export function mergeHealthMetrics(
     steps: apple?.steps ?? oura?.steps ?? null,
     active_calories: apple?.active_calories ?? oura?.active_calories ?? null,
     workout_count:
-      (oura?.workout_count ?? 0) + (apple?.workout_count ?? 0) || null,
+      (oura?.workout_count ?? 0) + (apple?.workout_count ?? 0),
   };
 }

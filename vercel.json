@@ -2,15 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/oura",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/sheets",
-      "schedule": "* * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/calendar",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/sheets",
+      "schedule": "0 8 * * *"
     }
   ]
 }

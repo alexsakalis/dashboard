@@ -1,8 +1,19 @@
 import { format, subDays } from "date-fns";
-import { decryptTokenSafe } from "@/lib/crypto";
+import { getOuraAccessToken } from "@/lib/integrations/oura/oauth";
 import type { Integration } from "@/types";
 
 const OURA_BASE = "https://api.ouraring.com";
+
+function formatOuraApiError(status: number, body: string): string {
+  const lower = body.toLowerCase();
+  if (status === 401 || lower.includes("expired") || lower.includes("invalid")) {
+    return "Oura session expired. Disconnect and reconnect Oura in Settings.";
+  }
+  if (status === 403) {
+    return "Oura denied access. Reconnect and approve all requested permissions.";
+  }
+  return `Oura API error (${status})`;
+}
 
 export interface OuraDailyData {
   date: string;
@@ -29,7 +40,7 @@ async function ouraFetch<T>(
   });
 
   if (!res.ok) {
-    throw new Error(`Oura API error: ${res.status} ${await res.text()}`);
+    throw new Error(formatOuraApiError(res.status, await res.text()));
   }
 
   return res.json() as Promise<T>;
@@ -39,13 +50,7 @@ export async function fetchOuraData(
   integration: Integration,
   daysBack = 3,
 ): Promise<OuraDailyData[]> {
-  const token = integration.access_token_enc
-    ? decryptTokenSafe(integration.access_token_enc)
-    : null;
-
-  if (!token) {
-    throw new Error("Oura token not configured");
-  }
+  const token = await getOuraAccessToken(integration);
 
   const endDate = format(new Date(), "yyyy-MM-dd");
   const startDate = format(subDays(new Date(), daysBack), "yyyy-MM-dd");

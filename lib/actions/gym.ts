@@ -90,8 +90,12 @@ export async function addWorkoutSet(formData: FormData) {
   const workoutId = formData.get("workout_id") as string;
   const exerciseName = formData.get("exercise_name") as string;
   const setNumber = parseInt(formData.get("set_number") as string, 10);
-  const reps = parseInt(formData.get("reps") as string, 10) || null;
-  const weight = parseFloat(formData.get("weight") as string) || null;
+  const repsRaw = formData.get("reps") as string;
+  const weightRaw = formData.get("weight") as string;
+  const reps =
+    repsRaw === "" || repsRaw == null ? null : parseInt(repsRaw, 10);
+  const weight =
+    weightRaw === "" || weightRaw == null ? null : parseFloat(weightRaw);
   const notes = (formData.get("notes") as string) || null;
 
   const { error } = await supabase.from("workout_sets").insert({

@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { encryptTokenSafe } from "@/lib/crypto";
+import { syncOuraForUserId } from "@/lib/integrations/oura/sync";
+import {
+  syncGoogleCalendarForUserId,
+  syncGoogleSheetsForUserId,
+} from "@/lib/integrations/google/sync";
 import { createClient } from "@/lib/supabase/server";
+import { extractSpreadsheetId } from "@/lib/integrations/google/client";
 import type { IntegrationProvider } from "@/types";
 
 export async function getIntegrations() {
@@ -19,7 +25,11 @@ export async function getIntegrations() {
   return data ?? [];
 }
 
-export async function saveOuraToken(token: string) {
+export async function saveOuraIntegration(
+  refreshToken: string,
+  accessToken: string,
+  expiresAt: string,
+) {
   const user = await requireUser();
   const supabase = await createClient();
 
@@ -27,15 +37,42 @@ export async function saveOuraToken(token: string) {
     {
       user_id: user.id,
       provider: "oura" as IntegrationProvider,
-      access_token_enc: encryptTokenSafe(token),
+      refresh_token_enc: encryptTokenSafe(refreshToken),
+      access_token_enc: encryptTokenSafe(accessToken),
+      token_expires_at: expiresAt,
       status: "active",
+      config: {},
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,provider" },
   );
 
   if (error) throw error;
+
+  try {
+    await syncOuraForUserId(user.id);
+  } catch (syncError) {
+    console.error("Oura initial sync failed:", syncError);
+  }
+
   revalidatePath("/settings/integrations");
+  revalidatePath("/");
+  revalidatePath("/health");
+}
+
+export async function syncOuraNow(): Promise<{ days: number } | { error: string }> {
+  const user = await requireUser();
+
+  try {
+    const days = await syncOuraForUserId(user.id);
+    revalidatePath("/settings/integrations");
+    revalidatePath("/");
+    revalidatePath("/health");
+    return { days };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Sync failed";
+    return { error: message };
+  }
 }
 
 export async function saveGoogleIntegration(
@@ -62,7 +99,48 @@ export async function saveGoogleIntegration(
   );
 
   if (error) throw error;
+
+  try {
+    await syncGoogleCalendarForUserId(user.id);
+  } catch (syncError) {
+    console.error("Google initial calendar sync failed:", syncError);
+  }
+
   revalidatePath("/settings/integrations");
+  revalidatePath("/");
+  revalidatePath("/finance");
+}
+
+export async function syncGoogleCalendarNow(): Promise<
+  { events: number } | { error: string }
+> {
+  const user = await requireUser();
+
+  try {
+    const events = await syncGoogleCalendarForUserId(user.id);
+    revalidatePath("/settings/integrations");
+    revalidatePath("/");
+    return { events };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Sync failed";
+    return { error: message };
+  }
+}
+
+export async function syncGoogleSheetsNow(): Promise<
+  { rows: number } | { error: string }
+> {
+  const user = await requireUser();
+
+  try {
+    const rows = await syncGoogleSheetsForUserId(user.id);
+    revalidatePath("/settings/integrations");
+    revalidatePath("/finance");
+    return { rows };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Sync failed";
+    return { error: message };
+  }
 }
 
 export async function saveSpreadsheetConfig(
@@ -81,7 +159,7 @@ export async function saveSpreadsheetConfig(
 
   const config = {
     ...(existing?.config as Record<string, unknown> ?? {}),
-    spreadsheet_id: spreadsheetId,
+    spreadsheet_id: extractSpreadsheetId(spreadsheetId),
     sheet_name: sheetName ?? "Transactions",
   };
 
@@ -92,7 +170,15 @@ export async function saveSpreadsheetConfig(
     .eq("provider", "google");
 
   if (error) throw error;
+
+  try {
+    await syncGoogleSheetsForUserId(user.id);
+  } catch (syncError) {
+    console.error("Google initial sheets sync failed:", syncError);
+  }
+
   revalidatePath("/settings/integrations");
+  revalidatePath("/finance");
 }
 
 export async function disconnectIntegration(provider: IntegrationProvider) {
@@ -109,9 +195,3 @@ export async function disconnectIntegration(provider: IntegrationProvider) {
   revalidatePath("/settings/integrations");
 }
 
-export async function signOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  const { redirect } = await import("next/navigation");
-  redirect("/login");
-}

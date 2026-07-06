@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isAuthDisabled } from "@/lib/auth-config";
 
 export async function createClient() {
+  if (isAuthDisabled()) {
+    return createServiceClient();
+  }
+
   const cookieStore = await cookies();
 
   return createServerClient(

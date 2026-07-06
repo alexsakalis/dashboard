@@ -40,10 +40,14 @@ export function CreateFinanceDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" variant="outline" />}>
-        <Plus className="mr-1 h-4 w-4" />
-        Add
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button size="sm" variant="outline">
+            <Plus className="mr-1 h-4 w-4" />
+            Add
+          </Button>
+        }
+      />
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>New Entry</DialogTitle>
