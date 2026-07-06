@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAuthDisabled } from "@/lib/auth-config";
 import { isEmailAllowed } from "@/lib/auth";
-import { hasSupabasePublicEnv } from "@/lib/env";
+import { hasSupabasePublicEnv, getSupabasePublicEnv } from "@/lib/env";
 
 export async function updateSession(request: NextRequest) {
   if (!hasSupabasePublicEnv()) {
@@ -37,10 +37,10 @@ export async function updateSession(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  try {
+    const { url, anonKey } = getSupabasePublicEnv();
+
+    const supabase = createServerClient(url, anonKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -55,40 +55,46 @@ export async function updateSession(request: NextRequest) {
           );
         },
       },
-    },
-  );
+    });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (user && !isEmailAllowed(user.email ?? "")) {
-    await supabase.auth.signOut();
+    if (user && !isEmailAllowed(user.email ?? "")) {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "unauthorized");
+      return NextResponse.redirect(url);
+    }
+
+    const isAuthRoute =
+      request.nextUrl.pathname.startsWith("/login") ||
+      request.nextUrl.pathname.startsWith("/auth");
+    const isPublicApi =
+      request.nextUrl.pathname.startsWith("/api/health") ||
+      request.nextUrl.pathname.startsWith("/api/health/sync") ||
+      request.nextUrl.pathname.startsWith("/api/cron");
+
+    if (!user && !isAuthRoute && !isPublicApi) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+
+    if (user && isAuthRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+
+    return supabaseResponse;
+  } catch (error) {
+    console.error("Middleware Supabase error:", error);
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("error", "unauthorized");
+    url.searchParams.set("error", "server_config");
     return NextResponse.redirect(url);
   }
-
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/auth");
-  const isPublicApi =
-    request.nextUrl.pathname.startsWith("/api/health") ||
-    request.nextUrl.pathname.startsWith("/api/health/sync") ||
-    request.nextUrl.pathname.startsWith("/api/cron");
-
-  if (!user && !isAuthRoute && !isPublicApi) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
-  }
-
-  if (user && isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
-
-  return supabaseResponse;
 }

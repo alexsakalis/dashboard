@@ -24,7 +24,7 @@ Copy `.env.local.example` to `.env.local` and fill in all values.
 | `TOKEN_ENCRYPTION_KEY` | Run `openssl rand -hex 32` — do not use placeholder |
 | `CRON_SECRET` | Run `openssl rand -hex 32` |
 
-Do **not** set `DISABLE_AUTH` on Vercel. After deploy, visit `/api/health` — it should return `"ok": true`.
+Do **not** set `DISABLE_AUTH` on Vercel. After adding env vars, **Redeploy** (env changes require a new deployment). Then visit `/api/health` — it should return `"ok": true`.
 
 Generate secrets:
 ```bash
