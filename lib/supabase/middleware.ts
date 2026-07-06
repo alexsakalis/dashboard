@@ -2,8 +2,26 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAuthDisabled } from "@/lib/auth-config";
 import { isEmailAllowed } from "@/lib/auth";
+import { hasSupabasePublicEnv } from "@/lib/env";
 
 export async function updateSession(request: NextRequest) {
+  if (!hasSupabasePublicEnv()) {
+    const pathname = request.nextUrl.pathname;
+    const isSetupRoute =
+      pathname.startsWith("/login") ||
+      pathname.startsWith("/api/health") ||
+      pathname.startsWith("/_next");
+
+    if (isSetupRoute) {
+      return NextResponse.next({ request });
+    }
+
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("error", "server_config");
+    return NextResponse.redirect(url);
+  }
+
   if (isAuthDisabled()) {
     if (
       request.nextUrl.pathname.startsWith("/login") ||
@@ -56,6 +74,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/auth");
   const isPublicApi =
+    request.nextUrl.pathname.startsWith("/api/health") ||
     request.nextUrl.pathname.startsWith("/api/health/sync") ||
     request.nextUrl.pathname.startsWith("/api/cron");
 

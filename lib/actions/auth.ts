@@ -20,11 +20,19 @@ export async function signInWithPassword(
     return { error: "This email is not authorized" };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (error) {
-    return { error: error.message };
+    if (error) {
+      return { error: error.message };
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Sign in failed";
+    if (message.includes("NEXT_PUBLIC_SUPABASE")) {
+      return { error: "Server misconfigured. Set Supabase env vars in Vercel." };
+    }
+    return { error: message };
   }
 
   redirect("/");

@@ -12,6 +12,20 @@
 
 Copy `.env.local.example` to `.env.local` and fill in all values.
 
+**Vercel (required for production):** In Project → Settings → Environment Variables, set at minimum:
+
+| Variable | Notes |
+|----------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL` | From Supabase project settings |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | From Supabase project settings |
+| `SUPABASE_SERVICE_ROLE_KEY` | From Supabase project settings |
+| `NEXT_PUBLIC_APP_URL` | Your Vercel URL, e.g. `https://your-app.vercel.app` |
+| `ALLOWED_EMAILS` | Your login email |
+| `TOKEN_ENCRYPTION_KEY` | Run `openssl rand -hex 32` — do not use placeholder |
+| `CRON_SECRET` | Run `openssl rand -hex 32` |
+
+Do **not** set `DISABLE_AUTH` on Vercel. After deploy, visit `/api/health` — it should return `"ok": true`.
+
 Generate secrets:
 ```bash
 openssl rand -hex 32  # TOKEN_ENCRYPTION_KEY

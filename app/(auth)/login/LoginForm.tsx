@@ -23,9 +23,11 @@ export function LoginForm() {
     state?.error ??
     (urlError === "unauthorized"
       ? "This email is not authorized"
-      : urlError === "auth_callback_error"
-        ? "Sign in failed. Try again."
-        : null);
+      : urlError === "server_config"
+        ? "Server misconfigured. Set Supabase env vars in Vercel."
+        : urlError === "auth_callback_error"
+          ? "Sign in failed. Try again."
+          : null);
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
