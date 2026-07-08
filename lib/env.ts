@@ -1,3 +1,18 @@
+function resolveEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function isPlaceholder(value: string): boolean {
+  return value.includes("your-");
+}
+
+const OAUTH_ENV_HINT =
+  "Set them in .env.local for local dev, or in Vercel → Project → Settings → Environment Variables for production.";
+
 function resolveSupabaseUrl(): string | undefined {
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
@@ -37,14 +52,76 @@ export function getDeploymentHealth() {
     supabaseUrl: Boolean(resolveSupabaseUrl()),
     supabaseAnonKey: Boolean(resolveSupabaseAnonKey()),
     supabasePublic: hasSupabasePublicEnv(),
-    supabaseServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
-    appUrl: Boolean(process.env.NEXT_PUBLIC_APP_URL?.trim()),
-    allowedEmails: Boolean(process.env.ALLOWED_EMAILS?.trim()),
+    supabaseServiceRole: Boolean(resolveEnv("SUPABASE_SERVICE_ROLE_KEY")),
+    appUrl: Boolean(resolveEnv("NEXT_PUBLIC_APP_URL")),
+    allowedEmails: Boolean(resolveEnv("ALLOWED_EMAILS")),
+    googleOAuth: hasGoogleOAuthEnv(),
+    ouraOAuth: hasOuraOAuthEnv(),
     tokenEncryptionKey:
-      Boolean(process.env.TOKEN_ENCRYPTION_KEY?.trim()) &&
-      !process.env.TOKEN_ENCRYPTION_KEY?.includes("your-"),
+      Boolean(resolveEnv("TOKEN_ENCRYPTION_KEY")) &&
+      !resolveEnv("TOKEN_ENCRYPTION_KEY")?.includes("your-"),
     cronSecret:
-      Boolean(process.env.CRON_SECRET?.trim()) &&
-      !process.env.CRON_SECRET?.includes("your-"),
+      Boolean(resolveEnv("CRON_SECRET")) &&
+      !resolveEnv("CRON_SECRET")?.includes("your-"),
   };
+}
+
+export function getGoogleClientCredentials(): {
+  clientId: string;
+  clientSecret: string;
+} {
+  const clientId = resolveEnv("GOOGLE_CLIENT_ID");
+  const clientSecret = resolveEnv("GOOGLE_CLIENT_SECRET");
+
+  if (
+    !clientId ||
+    !clientSecret ||
+    isPlaceholder(clientId) ||
+    isPlaceholder(clientSecret)
+  ) {
+    throw new Error(
+      `Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET. ${OAUTH_ENV_HINT}`,
+    );
+  }
+
+  return { clientId, clientSecret };
+}
+
+export function hasGoogleOAuthEnv(): boolean {
+  try {
+    getGoogleClientCredentials();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getOuraClientCredentials(): {
+  clientId: string;
+  clientSecret: string;
+} {
+  const clientId = resolveEnv("OURA_CLIENT_ID");
+  const clientSecret = resolveEnv("OURA_CLIENT_SECRET");
+
+  if (
+    !clientId ||
+    !clientSecret ||
+    isPlaceholder(clientId) ||
+    isPlaceholder(clientSecret)
+  ) {
+    throw new Error(
+      `Oura OAuth is not configured. Set OURA_CLIENT_ID and OURA_CLIENT_SECRET. ${OAUTH_ENV_HINT}`,
+    );
+  }
+
+  return { clientId, clientSecret };
+}
+
+export function hasOuraOAuthEnv(): boolean {
+  try {
+    getOuraClientCredentials();
+    return true;
+  } catch {
+    return false;
+  }
 }

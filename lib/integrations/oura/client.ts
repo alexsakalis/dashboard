@@ -1,4 +1,5 @@
 import { format, subDays } from "date-fns";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOuraAccessToken } from "@/lib/integrations/oura/oauth";
 import type { Integration } from "@/types";
 
@@ -49,8 +50,9 @@ async function ouraFetch<T>(
 export async function fetchOuraData(
   integration: Integration,
   daysBack = 3,
+  supabase?: SupabaseClient,
 ): Promise<OuraDailyData[]> {
-  const token = await getOuraAccessToken(integration);
+  const token = await getOuraAccessToken(integration, supabase);
 
   const endDate = format(new Date(), "yyyy-MM-dd");
   const startDate = format(subDays(new Date(), daysBack), "yyyy-MM-dd");

@@ -1,6 +1,13 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptTokenSafe, decryptTokenSafe } from "@/lib/crypto";
+import {
+  getOuraClientCredentials,
+  hasOuraOAuthEnv,
+} from "@/lib/env";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Integration } from "@/types";
+
+export { hasOuraOAuthEnv as isOuraOAuthConfigured };
 
 const OURA_AUTHORIZE = "https://cloud.ouraring.com/oauth/authorize";
 const OURA_TOKEN = "https://api.ouraring.com/oauth/token";
@@ -15,29 +22,6 @@ interface OuraTokenResponse {
 
 function getRedirectUri(): string {
   return `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/oura/callback`;
-}
-
-export function getOuraClientCredentials(): {
-  clientId: string;
-  clientSecret: string;
-} {
-  const clientId = process.env.OURA_CLIENT_ID;
-  const clientSecret = process.env.OURA_CLIENT_SECRET;
-  if (!clientId || !clientSecret || clientId.includes("your-")) {
-    throw new Error(
-      "Set OURA_CLIENT_ID and OURA_CLIENT_SECRET in .env.local from Oura Cloud → API Applications.",
-    );
-  }
-  return { clientId, clientSecret };
-}
-
-export function isOuraOAuthConfigured(): boolean {
-  try {
-    getOuraClientCredentials();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function getOuraAuthUrl(state: string): string {
@@ -108,7 +92,10 @@ function decryptStoredToken(stored: string): string {
   return decryptTokenSafe(stored);
 }
 
-export async function getOuraAccessToken(integration: Integration): Promise<string> {
+export async function getOuraAccessToken(
+  integration: Integration,
+  supabase?: SupabaseClient,
+): Promise<string> {
   const refreshToken = integration.refresh_token_enc
     ? decryptStoredToken(integration.refresh_token_enc)
     : null;
@@ -128,9 +115,8 @@ export async function getOuraAccessToken(integration: Integration): Promise<stri
   }
 
   const tokens = await refreshOuraAccessToken(refreshToken);
-  const supabase = await createServiceClient();
-
-  const { error } = await supabase
+  const db = supabase ?? (await createServiceClient());
+  const { error } = await db
     .from("integrations")
     .update({
       access_token_enc: encryptTokenSafe(tokens.accessToken),

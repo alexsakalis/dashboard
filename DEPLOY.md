@@ -23,8 +23,14 @@ Copy `.env.local.example` to `.env.local` and fill in all values.
 | `ALLOWED_EMAILS` | Your login email |
 | `TOKEN_ENCRYPTION_KEY` | Run `openssl rand -hex 32` — do not use placeholder |
 | `CRON_SECRET` | Run `openssl rand -hex 32` |
+| `GOOGLE_CLIENT_ID` | Google Cloud Console → OAuth credentials |
+| `GOOGLE_CLIENT_SECRET` | Google Cloud Console → OAuth credentials |
+| `OURA_CLIENT_ID` | Oura Cloud → API Applications |
+| `OURA_CLIENT_SECRET` | Oura Cloud → API Applications |
 
-Do **not** set `DISABLE_AUTH` on Vercel. After adding env vars, **Redeploy** (env changes require a new deployment). Then visit `/api/health` — it should return `"ok": true`.
+`SUPABASE_SERVICE_ROLE_KEY` is only required for scheduled cron syncs (Oura + Calendar). Manual sync from Settings works with the anon key and your logged-in session.
+
+Do **not** set `DISABLE_AUTH` on Vercel. After adding env vars, **Redeploy** (env changes require a new deployment). Then visit `/api/health` — it should return `"ok": true` when Supabase public env vars are set.
 
 Generate secrets:
 ```bash

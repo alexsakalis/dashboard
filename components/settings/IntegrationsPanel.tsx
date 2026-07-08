@@ -114,7 +114,9 @@ function OuraCard({
           >
             Oura Cloud → API Applications
           </a>{" "}
-          and add your Client ID + Secret to <code className="text-xs">.env.local</code>.
+          and add your Client ID + Secret to environment variables (
+          <code className="text-xs">.env.local</code> locally, or Vercel project
+          settings in production).
         </p>
         {!integration ? (
           oauthConfigured ? (
@@ -129,8 +131,9 @@ function OuraCard({
             <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
               Add <code className="text-xs">OURA_CLIENT_ID</code> and{" "}
               <code className="text-xs">OURA_CLIENT_SECRET</code> to{" "}
-              <code className="text-xs">.env.local</code>, then restart the dev
-              server. Redirect URI:{" "}
+              <code className="text-xs">.env.local</code> (local) or Vercel
+              Environment Variables (production), then redeploy or restart the
+              dev server. Redirect URI:{" "}
               <code className="break-all text-xs">
                 {process.env.NEXT_PUBLIC_APP_URL}/api/oauth/oura/callback
               </code>
@@ -204,8 +207,9 @@ function GoogleCard({
           >
             Google Cloud Console
           </a>{" "}
-          and add your Client ID + Secret to{" "}
-          <code className="text-xs">.env.local</code>.
+          and add your Client ID + Secret to environment variables (
+          <code className="text-xs">.env.local</code> locally, or Vercel project
+          settings in production).
         </p>
         {!integration ? (
           oauthConfigured ? (
@@ -220,8 +224,9 @@ function GoogleCard({
             <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
               Add <code className="text-xs">GOOGLE_CLIENT_ID</code> and{" "}
               <code className="text-xs">GOOGLE_CLIENT_SECRET</code> to{" "}
-              <code className="text-xs">.env.local</code>, then restart the dev
-              server. Redirect URI:{" "}
+              <code className="text-xs">.env.local</code> (local) or Vercel
+              Environment Variables (production), then redeploy or restart the
+              dev server. Redirect URI:{" "}
               <code className="break-all text-xs">
                 {process.env.NEXT_PUBLIC_APP_URL}/api/oauth/google/callback
               </code>

@@ -1,12 +1,13 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { fetchOuraData } from "@/lib/integrations/oura/client";
 import type { Integration } from "@/types";
 
 export async function syncOuraIntegration(
   integration: Integration,
+  supabase: SupabaseClient,
 ): Promise<number> {
-  const supabase = await createServiceClient();
-  const dailyData = await fetchOuraData(integration);
+  const dailyData = await fetchOuraData(integration, 3, supabase);
 
   for (const day of dailyData) {
     const { error } = await supabase.from("health_daily_snapshots").upsert(
@@ -41,7 +42,7 @@ export async function syncOuraIntegration(
 }
 
 export async function syncOuraForUserId(userId: string): Promise<number> {
-  const supabase = await createServiceClient();
+  const supabase = await createClient();
   const { data: integration, error } = await supabase
     .from("integrations")
     .select("*")
@@ -54,7 +55,7 @@ export async function syncOuraForUserId(userId: string): Promise<number> {
     throw new Error("Oura is not connected");
   }
 
-  return syncOuraIntegration(integration as Integration);
+  return syncOuraIntegration(integration as Integration, supabase);
 }
 
 export async function syncAllOuraIntegrations(): Promise<{
@@ -73,7 +74,7 @@ export async function syncAllOuraIntegrations(): Promise<{
   let synced = 0;
   for (const integration of integrations ?? []) {
     try {
-      await syncOuraIntegration(integration as Integration);
+      await syncOuraIntegration(integration as Integration, supabase);
       synced++;
     } catch (err) {
       console.error(`Oura sync failed for user ${integration.user_id}:`, err);

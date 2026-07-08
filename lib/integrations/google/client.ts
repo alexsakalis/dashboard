@@ -1,33 +1,16 @@
 import { addDays, startOfDay } from "date-fns";
 import { google } from "googleapis";
 import { decryptTokenSafe, encryptTokenSafe } from "@/lib/crypto";
+import {
+  getGoogleClientCredentials,
+  hasGoogleOAuthEnv,
+} from "@/lib/env";
 import type { Integration } from "@/types";
+
+export { hasGoogleOAuthEnv as isGoogleOAuthConfigured };
 
 function getRedirectUri(): string {
   return `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/google/callback`;
-}
-
-export function getGoogleClientCredentials(): {
-  clientId: string;
-  clientSecret: string;
-} {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret || clientId.includes("your-")) {
-    throw new Error(
-      "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.local from Google Cloud Console.",
-    );
-  }
-  return { clientId, clientSecret };
-}
-
-export function isGoogleOAuthConfigured(): boolean {
-  try {
-    getGoogleClientCredentials();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function formatGoogleApiError(err: unknown): string {
