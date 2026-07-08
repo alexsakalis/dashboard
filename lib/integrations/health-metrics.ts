@@ -16,5 +16,6 @@ export function mergeHealthMetrics(
     steps: oura?.steps ?? null,
     active_calories: oura?.active_calories ?? null,
     workout_count: oura?.workout_count ?? null,
+    activity_score: oura?.activity_score ?? null,
   };
 }

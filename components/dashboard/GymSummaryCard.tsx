@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { ArrowRight, Dumbbell, Flame, Trophy } from "lucide-react";
+import { ArrowRight, Dumbbell, Flame } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getGymDashboard } from "@/lib/actions/gym";
-import { formatSplit, formatWeight } from "@/lib/gym/format";
+import { formatSplit } from "@/lib/gym/format";
+import type { DashboardSummary, WorkoutSplit } from "@/types";
 
-export async function GymSummaryCard() {
-  const summary = await getGymDashboard();
-  const lastWorkout = summary.lastWorkout;
+export function GymSummaryCard({ summary }: { summary: DashboardSummary }) {
+  const lastWorkout = summary.card_data.gym_last_workout;
 
   return (
     <Card>
@@ -31,27 +30,17 @@ export async function GymSummaryCard() {
             </div>
             <p className="text-sm text-muted-foreground">
               {format(new Date(lastWorkout.started_at), "MMM d, yyyy")}
-              {lastWorkout.split && ` · ${formatSplit(lastWorkout.split)}`}
+              {lastWorkout.split &&
+                ` · ${formatSplit(lastWorkout.split as WorkoutSplit)}`}
             </p>
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Flame className="h-3 w-3" />
-                {summary.trainingStreak}d streak
+                {summary.gym_streak}d streak
               </span>
-              <span>{summary.weeklyWorkoutCount} this week</span>
-              {summary.latestBodyWeight && (
-                <span>
-                  {formatWeight(
-                    summary.latestBodyWeight.weight,
-                    summary.latestBodyWeight.unit,
-                  )}
-                </span>
-              )}
-              {summary.recentPRs.length > 0 && (
-                <span className="flex items-center gap-1">
-                  <Trophy className="h-3 w-3" />
-                  {summary.recentPRs.length} PRs
-                </span>
+              <span>{summary.weekly_workouts} this week</span>
+              {summary.latest_body_weight != null && (
+                <span>{summary.latest_body_weight} lbs</span>
               )}
             </div>
           </div>

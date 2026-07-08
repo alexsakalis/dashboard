@@ -2,7 +2,41 @@
 
 import { startOfDay, endOfDay } from "date-fns";
 import { requireUser } from "@/lib/auth";
+import {
+  createDefaultDashboardSummary,
+  refreshDashboardSummary,
+} from "@/lib/integrations/dashboard/update-dashboard-summary";
 import { createClient } from "@/lib/supabase/server";
+import type { DashboardSummary } from "@/types";
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("dashboard_summary")
+    .select("*")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (data) {
+    return data as DashboardSummary;
+  }
+
+  try {
+    return await refreshDashboardSummary(user.id, supabase);
+  } catch {
+    return createDefaultDashboardSummary(user.id);
+  }
+}
+
+export async function refreshDashboardSummaryForCurrentUser() {
+  const user = await requireUser();
+  const supabase = await createClient();
+  await refreshDashboardSummary(user.id, supabase);
+}
 
 export async function getCalendarEvents(limit = 10) {
   const user = await requireUser();

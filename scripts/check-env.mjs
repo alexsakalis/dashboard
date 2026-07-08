@@ -16,6 +16,8 @@ const REQUIRED_KEYS = [
   "OURA_CLIENT_SECRET",
 ];
 
+const OPTIONAL_ALIASES = ["SUPABASE_URL"];
+
 function loadEnvFile(path) {
   const env = {};
   if (!fs.existsSync(path)) return env;
@@ -52,6 +54,9 @@ function main() {
   console.log("");
   console.log("Required keys:");
   for (const key of REQUIRED_KEYS) console.log(`  ${key}`);
+  console.log("");
+  console.log("Optional aliases:");
+  for (const key of OPTIONAL_ALIASES) console.log(`  ${key}`);
   console.log("");
   console.log(
     "Set NEXT_PUBLIC_APP_URL to your production URL on Vercel, e.g. https://your-app.vercel.app",

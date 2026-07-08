@@ -3,7 +3,7 @@
 ## 1. Supabase Setup
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Run all migrations in `supabase/migrations/` via the SQL Editor (including `20260709120000_gym_workout_tracker.sql`)
+2. Run all migrations in `supabase/migrations/` via the SQL Editor (including `20260711120000_integration_engine.sql`)
 3. Enable Email auth in Authentication → Providers
 4. Copy Project URL, anon key, and service role key to env vars
 5. Create your login account: `npm run create-user -- your-password`
@@ -55,11 +55,17 @@ npm i -g vercel
 vercel
 ```
 
-Set all environment variables in Vercel project settings. The `vercel.json` cron jobs require a Vercel Pro plan or will run on Hobby with limitations.
+Set all environment variables in Vercel project settings. The unified Integration Engine cron in `vercel.json` requires a Vercel Pro plan or will run on Hobby with limitations.
 
 Add env var `CRON_SECRET` and Vercel automatically sends it as `Authorization: Bearer` header to cron routes.
 
-**Hobby plan:** cron schedules must run at most once per day (UTC). This repo uses `0 6/7 * * *` for Oura and Calendar. For more frequent sync (e.g. every 30 minutes), upgrade to Pro and update `vercel.json`.
+**Integration Engine cron:** `GET /api/cron/sync` runs daily at 10:00 UTC and syncs all enabled integrations (Oura, Google Calendar, etc.), writes sync logs, and refreshes `dashboard_summary`.
+
+Legacy routes `/api/cron/oura` and `/api/cron/calendar` still work and delegate to the engine.
+
+Manual sync: authenticated `POST /api/sync` (rate limited to once per 60 seconds).
+
+**Hobby plan:** cron schedules must run at most once per day (UTC). This repo uses `0 10 * * *` for the unified sync job.
 
 ## 5. PWA (iPhone)
 
@@ -94,6 +100,9 @@ npm run generate-icons
 - [ ] Tasks CRUD and scoring
 - [ ] Habits toggle with streaks
 - [ ] Gym: start workout, log sets, complete session, view history & progress
+- [ ] Integration Engine cron syncs all providers (`/api/cron/sync`)
+- [ ] Dashboard loads from single `dashboard_summary` query
+- [ ] Sync status card shows integration health on homepage
 - [ ] Oura cron syncs health data
 - [ ] Credit cards can be added on Finance page
 - [ ] Google Calendar events appear

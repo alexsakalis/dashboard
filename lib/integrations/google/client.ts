@@ -61,6 +61,10 @@ export function getCalendarClient(integration: Integration) {
   return google.calendar({ version: "v3", auth: getAuthenticatedClient(integration) });
 }
 
+export function getGoogleOAuth2Client(integration: Integration) {
+  return getAuthenticatedClient(integration);
+}
+
 export async function exchangeGoogleCode(code: string) {
   try {
     const oauth2 = getOAuthClient();
@@ -129,7 +133,8 @@ async function listCalendarIds(
 }
 
 export async function fetchCalendarEvents(integration: Integration) {
-  const calendar = getCalendarClient(integration);
+  const oauth2 = getAuthenticatedClient(integration);
+  const calendar = google.calendar({ version: "v3", auth: oauth2 });
   const configuredId = integration.config.calendar_id as string | undefined;
   const calendarIds = await listCalendarIds(calendar, configuredId);
 
@@ -153,7 +158,10 @@ export async function fetchCalendarEvents(integration: Integration) {
     }
   }
 
-  return events;
+  return {
+    events,
+    refreshedCredentials: oauth2.credentials,
+  };
 }
 
 export { encryptTokenSafe };

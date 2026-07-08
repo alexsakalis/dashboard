@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { syncAllOuraIntegrations } from "@/lib/integrations/oura/sync";
+import { runAllIntegrations } from "@/lib/integrations/runner";
 
 function verifyCronAuth(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
@@ -12,8 +12,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await syncAllOuraIntegrations();
-    return NextResponse.json(result);
+    const result = await runAllIntegrations({
+      trigger: "cron",
+      providers: ["oura"],
+    });
+    return NextResponse.json({
+      synced: result.results.filter(
+        (r) => r.provider === "oura" && r.status === "success",
+      ).length,
+      total: result.results.filter((r) => r.provider === "oura").length,
+      ...result,
+    });
   } catch (error) {
     console.error("Oura cron error:", error);
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });

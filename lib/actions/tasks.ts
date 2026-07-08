@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { format } from "date-fns";
 import { requireUser } from "@/lib/auth";
+import { refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { createClient } from "@/lib/supabase/server";
 import { awardTaskPoints } from "@/lib/scoring/actions";
 import type { TaskPriority, TaskStatus } from "@/types";
@@ -88,6 +89,7 @@ export async function createTask(formData: FormData) {
   if (error) throw error;
   revalidatePath("/");
   revalidatePath("/tasks");
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 export async function updateTask(
@@ -113,6 +115,7 @@ export async function updateTask(
   if (error) throw error;
   revalidatePath("/");
   revalidatePath("/tasks");
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 export async function completeTask(taskId: string) {
@@ -147,6 +150,7 @@ export async function completeTask(taskId: string) {
 
   revalidatePath("/");
   revalidatePath("/tasks");
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 export async function deleteTask(taskId: string) {
@@ -162,6 +166,7 @@ export async function deleteTask(taskId: string) {
   if (error) throw error;
   revalidatePath("/");
   revalidatePath("/tasks");
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 export async function createCategory(name: string, color: string) {

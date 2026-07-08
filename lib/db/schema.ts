@@ -3,4 +3,4 @@
 //
 // TypeScript types for application use are in types/index.ts
 
-export const SCHEMA_VERSION = "20260706120000";
+export const SCHEMA_VERSION = "20260711120000";

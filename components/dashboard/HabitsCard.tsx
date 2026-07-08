@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getHabits, seedDefaultHabits } from "@/lib/actions/habits";
 import { HabitToggleList } from "@/components/habits/HabitToggleList";
+import type { DashboardSummary } from "@/types";
 
-export async function HabitsCard() {
-  await seedDefaultHabits();
-  const habits = await getHabits();
+export function HabitsCard({ summary }: { summary: DashboardSummary }) {
+  const habits = summary.card_data.habits_preview;
 
   return (
     <Card>

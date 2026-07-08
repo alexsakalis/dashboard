@@ -5,19 +5,23 @@ import { CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   disconnectIntegration,
-  syncOuraNow,
+  syncAllNow,
   syncGoogleCalendarNow,
+  syncOuraNow,
 } from "@/lib/actions/integrations";
+import { IntegrationStatusBadge } from "@/components/integrations/IntegrationStatusBadge";
 
 interface IntegrationSummary {
   id: string;
   provider: string;
+  display_name?: string | null;
   config: Record<string, unknown>;
   status: string;
   last_synced_at: string | null;
+  last_success_at?: string | null;
+  last_message?: string | null;
 }
 
 interface IntegrationEnvStatus {
@@ -131,7 +135,44 @@ export function IntegrationsPanel({
         envStatus={envStatus}
         appUrl={appUrl}
       />
+      {(oura || google) && <SyncAllButton />}
     </div>
+  );
+}
+
+function SyncAllButton() {
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSyncAll() {
+    setSyncMessage(null);
+    startTransition(async () => {
+      const result = await syncAllNow();
+      if ("error" in result) {
+        setSyncMessage(result.error);
+      } else {
+        const succeeded = result.results.filter((r) => r.status === "success").length;
+        setSyncMessage(`Synced ${succeeded} integration(s).`);
+      }
+    });
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-2 pt-6">
+        <Button
+          variant="secondary"
+          onClick={handleSyncAll}
+          disabled={isPending}
+          className="w-full"
+        >
+          {isPending ? "Syncing all..." : "Sync all integrations"}
+        </Button>
+        {syncMessage && (
+          <p className="text-sm text-muted-foreground">{syncMessage}</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -171,7 +212,11 @@ function OuraCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-base">Oura Ring</CardTitle>
-        <StatusBadge status={integration?.status} synced={integration?.last_synced_at} />
+        <IntegrationStatusBadge
+          status={integration?.status}
+          synced={integration?.last_success_at ?? integration?.last_synced_at}
+          message={integration?.last_message}
+        />
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
@@ -263,7 +308,11 @@ function GoogleCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-base">Google Calendar</CardTitle>
-        <StatusBadge status={integration?.status} synced={integration?.last_synced_at} />
+        <IntegrationStatusBadge
+          status={integration?.status}
+          synced={integration?.last_success_at ?? integration?.last_synced_at}
+          message={integration?.last_message}
+        />
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
@@ -316,30 +365,5 @@ function GoogleCard({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function StatusBadge({
-  status,
-  synced,
-}: {
-  status?: string;
-  synced?: string | null;
-}) {
-  if (!status) {
-    return <Badge variant="secondary">Not connected</Badge>;
-  }
-
-  return (
-    <div className="text-right">
-      <Badge variant={status === "active" ? "default" : "destructive"}>
-        {status}
-      </Badge>
-      {synced && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Synced {new Date(synced).toLocaleString()}
-        </p>
-      )}
-    </div>
   );
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { format } from "date-fns";
 import { requireUser } from "@/lib/auth";
+import { refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { createClient } from "@/lib/supabase/server";
 import {
   awardHabitPoints,
@@ -82,6 +83,7 @@ export async function toggleHabit(habitId: string) {
 
   revalidatePath("/");
   revalidatePath("/habits");
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 export async function createHabit(name: string, icon?: string) {
@@ -98,7 +100,7 @@ export async function createHabit(name: string, icon?: string) {
   revalidatePath("/habits");
 }
 
-export async function seedDefaultHabits() {
+export async function seedDefaultHabits(): Promise<boolean> {
   const user = await requireUser();
   const supabase = await createClient();
 
@@ -107,13 +109,14 @@ export async function seedDefaultHabits() {
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.id);
 
-  if (count && count > 0) return;
+  if (count && count > 0) return false;
 
   await supabase.from("habits").insert([
     { user_id: user.id, name: "Pills", icon: "💊", sort_order: 0 },
     { user_id: user.id, name: "Walking", icon: "🚶", sort_order: 1 },
     { user_id: user.id, name: "Reading", icon: "📚", sort_order: 2 },
   ]);
+  return true;
 }
 
 export async function deleteHabit(habitId: string) {

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ArrowRight, CreditCard, CalendarClock, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCreditCardSummary } from "@/lib/actions/finance";
 import { formatCurrency, formatPercent } from "@/lib/finance/format";
+import type { DashboardSummary } from "@/types";
 
-export async function FinanceCard() {
-  const summary = await getCreditCardSummary();
-  const hasData = summary.cardCount > 0;
+export function FinanceCard({ summary }: { summary: DashboardSummary }) {
+  const finance = summary.card_data.finance;
+  const hasData = finance && finance.card_count > 0;
 
   return (
     <Card>
@@ -32,12 +32,12 @@ export async function FinanceCard() {
                 <span className="text-xs">Total owed</span>
               </div>
               <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
-                {formatCurrency(summary.totalOwed)}
+                {formatCurrency(finance.total_owed)}
               </p>
               <p className="text-xs text-muted-foreground">
-                {summary.cardCount} card{summary.cardCount === 1 ? "" : "s"}
-                {summary.overallUtilization != null &&
-                  ` · ${formatPercent(summary.overallUtilization)} util`}
+                {finance.card_count} card{finance.card_count === 1 ? "" : "s"}
+                {finance.overall_utilization != null &&
+                  ` · ${formatPercent(finance.overall_utilization)} util`}
               </p>
             </div>
             <div>
@@ -46,18 +46,18 @@ export async function FinanceCard() {
                 <span className="text-xs">Minimum due</span>
               </div>
               <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
-                {formatCurrency(summary.totalMinimum)}
+                {formatCurrency(finance.total_minimum)}
               </p>
               <p className="text-xs text-muted-foreground">
-                {summary.dueSoonCount > 0
-                  ? `${summary.dueSoonCount} due within 7 days`
+                {finance.due_soon_count > 0
+                  ? `${finance.due_soon_count} due within 7 days`
                   : "No payments due soon"}
               </p>
             </div>
             <div className="col-span-2 flex items-center gap-1.5 border-t border-border/50 pt-3 text-muted-foreground">
               <TrendingUp className="h-3.5 w-3.5" />
               <span className="text-xs">
-                {formatCurrency(summary.paidThisMonth)} paid this month
+                {formatCurrency(finance.paid_this_month)} paid this month
               </span>
             </div>
           </div>

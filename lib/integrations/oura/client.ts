@@ -25,6 +25,7 @@ export interface OuraDailyData {
   resting_hr: number | null;
   steps: number | null;
   active_calories: number | null;
+  activity_score: number | null;
   workout_count: number;
 }
 
@@ -82,6 +83,7 @@ export async function fetchOuraData(
         day: string;
         steps: number | null;
         active_calories: number | null;
+        score: number | null;
       }>;
     }>(token, "/v2/usercollection/daily_activity", params),
     ouraFetch<{ data: Array<{ day: string }> }>(
@@ -118,6 +120,7 @@ export async function fetchOuraData(
       resting_hr: sleepItem?.lowest_heart_rate ?? null,
       steps: activityItem?.steps ?? null,
       active_calories: activityItem?.active_calories ?? null,
+      activity_score: activityItem?.score ?? null,
       workout_count: workoutCount,
     };
   });

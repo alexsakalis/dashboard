@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { ArrowRight, Activity, Heart, Moon, Footprints } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getHealthSnapshots } from "@/lib/actions/dashboard";
-import { mergeHealthMetrics } from "@/lib/integrations/health-metrics";
+import type { DashboardSummary } from "@/types";
 
 function MetricItem({
   icon: Icon,
@@ -32,14 +30,12 @@ function MetricItem({
   );
 }
 
-export async function HealthCard() {
-  const snapshots = await getHealthSnapshots();
-  const today = format(new Date(), "yyyy-MM-dd");
-  const metrics = mergeHealthMetrics(snapshots, today);
-
-  const hasData = Object.values(metrics).some(
-    (v, i) => i > 0 && v !== null,
-  );
+export function HealthCard({ summary }: { summary: DashboardSummary }) {
+  const hasData =
+    summary.sleep_score != null ||
+    summary.readiness_score != null ||
+    summary.latest_hrv != null ||
+    summary.steps != null;
 
   return (
     <Card>
@@ -55,18 +51,35 @@ export async function HealthCard() {
       <CardContent>
         {!hasData ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            Connect Oura in Settings.
+            Connect Oura in Settings to see health metrics.
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <MetricItem icon={Moon} label="Sleep" value={metrics.sleep_score} />
+          <div className="grid grid-cols-2 gap-3">
+            <MetricItem
+              icon={Moon}
+              label="Sleep"
+              value={summary.sleep_score}
+            />
             <MetricItem
               icon={Activity}
               label="Readiness"
-              value={metrics.readiness_score}
+              value={summary.readiness_score}
             />
-            <MetricItem icon={Heart} label="HRV" value={metrics.hrv_ms ? Math.round(metrics.hrv_ms) : null} unit="ms" />
-            <MetricItem icon={Footprints} label="Steps" value={metrics.steps} />
+            <MetricItem
+              icon={Heart}
+              label="HRV"
+              value={
+                summary.latest_hrv != null
+                  ? Math.round(Number(summary.latest_hrv))
+                  : null
+              }
+              unit="ms"
+            />
+            <MetricItem
+              icon={Footprints}
+              label="Steps"
+              value={summary.steps}
+            />
           </div>
         )}
       </CardContent>

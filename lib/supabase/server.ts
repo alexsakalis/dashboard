@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isAuthDisabled } from "@/lib/auth-config";
-import { getServiceRoleKey, getSupabasePublicEnv } from "@/lib/env";
+import { getSupabasePublicEnv } from "@/lib/env";
 
 export async function createClient() {
   if (isAuthDisabled()) {
@@ -31,11 +31,6 @@ export async function createClient() {
 }
 
 export async function createServiceClient() {
-  const { createClient: createSupabaseClient } = await import(
-    "@supabase/supabase-js"
-  );
-  const { url } = getSupabasePublicEnv();
-  const serviceRoleKey = getServiceRoleKey();
-
-  return createSupabaseClient(url, serviceRoleKey);
+  const { createAdminClient } = await import("@/lib/server/supabase-admin");
+  return createAdminClient();
 }

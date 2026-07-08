@@ -5,12 +5,10 @@ import {
   calculateDailyProgress,
   DAILY_SCORE_GOAL,
 } from "@/lib/scoring/daily-score";
-import { getTodayScore } from "@/lib/scoring/actions";
-import { requireUser } from "@/lib/auth";
+import type { DashboardSummary } from "@/types";
 
-export async function DailyScoreCard() {
-  const user = await requireUser();
-  const score = await getTodayScore(user.id);
+export function DailyScoreCard({ summary }: { summary: DashboardSummary }) {
+  const score = summary.card_data.daily_score_detail;
   const progress = calculateDailyProgress(score.total_score);
 
   return (

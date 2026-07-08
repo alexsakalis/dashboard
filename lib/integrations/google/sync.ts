@@ -1,41 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { fetchCalendarEvents } from "@/lib/integrations/google/client";
+import { syncGoogleCalendarIntegrationRows } from "@/lib/integrations/providers/google-calendar";
+import { createClient } from "@/lib/supabase/server";
 import type { Integration } from "@/types";
 
 export async function syncGoogleCalendarIntegration(
   integration: Integration,
   supabase: SupabaseClient,
 ): Promise<number> {
-  const events = await fetchCalendarEvents(integration);
-
-  for (const event of events) {
-    const { error } = await supabase.from("calendar_events").upsert(
-      {
-        user_id: integration.user_id,
-        external_id: event.external_id,
-        title: event.title,
-        start_time: event.start_time,
-        end_time: event.end_time,
-        all_day: event.all_day,
-        location: event.location,
-        raw_payload: event.raw_payload,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,external_id" },
-    );
-
-    if (error) throw error;
+  const result = await syncGoogleCalendarIntegrationRows(
+    integration,
+    supabase,
+    "manual",
+  );
+  if (result.status === "error") {
+    throw new Error(result.message);
   }
-
-  const { error: updateError } = await supabase
-    .from("integrations")
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq("id", integration.id);
-
-  if (updateError) throw updateError;
-
-  return events.length;
+  return (result.metadata?.rowsUpserted as number | undefined) ?? 0;
 }
 
 async function getGoogleIntegration(
@@ -69,27 +49,11 @@ export async function syncAllGoogleCalendarIntegrations(): Promise<{
   synced: number;
   total: number;
 }> {
-  const supabase = await createServiceClient();
-  const { data: integrations, error } = await supabase
-    .from("integrations")
-    .select("*")
-    .eq("provider", "google")
-    .eq("status", "active");
-
-  if (error) throw error;
-
-  let synced = 0;
-  for (const integration of integrations ?? []) {
-    try {
-      await syncGoogleCalendarIntegration(integration as Integration, supabase);
-      synced++;
-    } catch (err) {
-      console.error(
-        `Calendar sync failed for user ${integration.user_id}:`,
-        err,
-      );
-    }
-  }
-
-  return { synced, total: integrations?.length ?? 0 };
+  const { runAllIntegrations } = await import("@/lib/integrations/runner");
+  const summary = await runAllIntegrations({ trigger: "cron" });
+  const googleResults = summary.results.filter((r) => r.provider === "google");
+  return {
+    synced: googleResults.filter((r) => r.status === "success").length,
+    total: googleResults.length,
+  };
 }

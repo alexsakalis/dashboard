@@ -2,10 +2,10 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { ArrowRight, Calendar } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCalendarEvents } from "@/lib/actions/dashboard";
+import type { DashboardSummary } from "@/types";
 
-export async function CalendarCard() {
-  const events = await getCalendarEvents(3);
+export function CalendarCard({ summary }: { summary: DashboardSummary }) {
+  const events = summary.card_data.calendar_preview;
 
   return (
     <Card>

@@ -1,21 +1,12 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { getTasks } from "@/lib/actions/tasks";
 import { TaskItem } from "@/components/tasks/TaskItem";
+import type { DashboardSummary, Task, TaskPriority, TaskStatus } from "@/types";
 
-const priorityColors = {
-  low: "bg-slate-400",
-  medium: "bg-blue-500",
-  high: "bg-orange-500",
-  urgent: "bg-red-500",
-};
-
-export async function TasksCard() {
-  const tasks = await getTasks("today");
-  const displayTasks = tasks.slice(0, 5);
+export function TasksCard({ summary }: { summary: DashboardSummary }) {
+  const tasks = summary.card_data.tasks_preview;
+  const totalTasks = summary.tasks_due_today;
 
   return (
     <Card>
@@ -29,18 +20,36 @@ export async function TasksCard() {
         </Link>
       </CardHeader>
       <CardContent className="space-y-2">
-        {displayTasks.length === 0 ? (
+        {tasks.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No tasks for today. Add one to get started.
           </p>
         ) : (
-          displayTasks.map((task) => (
-            <TaskItem key={task.id} task={task} compact />
+          tasks.map((task) => (
+            <TaskItem
+              key={task.id}
+              task={
+                {
+                  ...task,
+                  user_id: summary.user_id,
+                  description: null,
+                  completed_at: null,
+                  points_awarded: 0,
+                  recurrence_rule_id: null,
+                  category_id: null,
+                  created_at: "",
+                  updated_at: "",
+                  status: task.status as TaskStatus,
+                  priority: task.priority as TaskPriority,
+                } as Task
+              }
+              compact
+            />
           ))
         )}
-        {tasks.length > 5 && (
+        {totalTasks > 5 && (
           <p className="pt-1 text-center text-xs text-muted-foreground">
-            +{tasks.length - 5} more tasks
+            +{totalTasks - 5} more tasks
           </p>
         )}
       </CardContent>
@@ -51,21 +60,18 @@ export async function TasksCard() {
 export function TaskPriorityDot({
   priority,
 }: {
-  priority: keyof typeof priorityColors;
+  priority: "low" | "medium" | "high" | "urgent";
 }) {
+  const priorityColors = {
+    low: "bg-slate-400",
+    medium: "bg-blue-500",
+    high: "bg-orange-500",
+    urgent: "bg-red-500",
+  };
+
   return (
     <span
       className={`inline-block h-2 w-2 rounded-full ${priorityColors[priority]}`}
     />
-  );
-}
-
-export function TaskDueBadge({ dueDate }: { dueDate: string | null }) {
-  if (!dueDate) return null;
-  const isToday = dueDate === format(new Date(), "yyyy-MM-dd");
-  return (
-    <Badge variant="secondary" className="text-xs font-normal">
-      {isToday ? "Today" : format(new Date(dueDate), "MMM d")}
-    </Badge>
   );
 }
