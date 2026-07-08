@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "generate-icons": "node scripts/generate-pwa-icons.mjs",
+    "check-env": "node scripts/check-env.mjs",
     "build": "npm run generate-icons && next build",
     "start": "next start",
     "lint": "eslint",

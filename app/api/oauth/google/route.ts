@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getGoogleAuthUrl } from "@/lib/integrations/google/client";
+import { getAppUrl } from "@/lib/env";
 
 export async function GET() {
+  const appUrl = getAppUrl();
+
   try {
     const state = crypto.randomUUID();
     const url = getGoogleAuthUrl(state);
@@ -19,7 +22,7 @@ export async function GET() {
     const message =
       err instanceof Error ? err.message : "Google OAuth not configured";
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=${encodeURIComponent(message)}`,
+      `${appUrl}/settings/integrations?error=${encodeURIComponent(message)}`,
     );
   }
 }

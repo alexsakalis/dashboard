@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
+import { getAppUrl } from "@/lib/env";
 import { exchangeGoogleCode } from "@/lib/integrations/google/client";
 import { saveGoogleIntegration } from "@/lib/actions/integrations";
 
 export async function GET(request: Request) {
+  const appUrl = getAppUrl();
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
@@ -12,7 +14,7 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=${error}`,
+      `${appUrl}/settings/integrations?error=${error}`,
     );
   }
 
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
 
   if (!code || !state || state !== savedState) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=invalid_state`,
+      `${appUrl}/settings/integrations?error=invalid_state`,
     );
   }
 
@@ -31,7 +33,7 @@ export async function GET(request: Request) {
     const tokens = await exchangeGoogleCode(code);
     if (!tokens.refreshToken) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=no_refresh_token`,
+        `${appUrl}/settings/integrations?error=no_refresh_token`,
       );
     }
 
@@ -45,12 +47,12 @@ export async function GET(request: Request) {
     cookieStore.delete("google_oauth_state");
 
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?success=google`,
+      `${appUrl}/settings/integrations?success=google`,
     );
   } catch (err) {
     console.error("Google OAuth callback error:", err);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=callback_failed`,
+      `${appUrl}/settings/integrations?error=callback_failed`,
     );
   }
 }

@@ -18,19 +18,19 @@ Copy `.env.local.example` to `.env.local` and fill in all values.
 |----------|-------|
 | `NEXT_PUBLIC_SUPABASE_URL` | From Supabase project settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | From Supabase project settings |
-| `SUPABASE_SERVICE_ROLE_KEY` | From Supabase project settings |
+| `SUPABASE_SERVICE_ROLE_KEY` | From Supabase project settings (required for Oura token refresh + create-user script) |
+| `GOOGLE_CLIENT_ID` | Google Cloud OAuth client ID (Settings → Integrations) |
+| `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client secret |
+| `OURA_CLIENT_ID` | Oura Cloud API application client ID |
+| `OURA_CLIENT_SECRET` | Oura Cloud API application client secret |
 | `NEXT_PUBLIC_APP_URL` | Your Vercel URL, e.g. `https://your-app.vercel.app` |
 | `ALLOWED_EMAILS` | Your login email |
 | `TOKEN_ENCRYPTION_KEY` | Run `openssl rand -hex 32` — do not use placeholder |
 | `CRON_SECRET` | Run `openssl rand -hex 32` |
-| `GOOGLE_CLIENT_ID` | Google Cloud Console → OAuth credentials |
-| `GOOGLE_CLIENT_SECRET` | Google Cloud Console → OAuth credentials |
-| `OURA_CLIENT_ID` | Oura Cloud → API Applications |
-| `OURA_CLIENT_SECRET` | Oura Cloud → API Applications |
 
-`SUPABASE_SERVICE_ROLE_KEY` is only required for scheduled cron syncs (Oura + Calendar). Manual sync from Settings works with the anon key and your logged-in session.
+Do **not** set `DISABLE_AUTH` on Vercel. After adding env vars, **Redeploy** (env changes require a new deployment). Then visit `/api/health` — it should return `"ok": true` and list `googleOAuth`, `ouraOAuth`, and `supabaseServiceRole` as `true`.
 
-Do **not** set `DISABLE_AUTH` on Vercel. After adding env vars, **Redeploy** (env changes require a new deployment). Then visit `/api/health` — it should return `"ok": true` when Supabase public env vars are set.
+Validate local env: `npm run check-env`
 
 Generate secrets:
 ```bash

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isAuthDisabled } from "@/lib/auth-config";
-import { getSupabasePublicEnv } from "@/lib/env";
+import { getServiceRoleKey, getSupabasePublicEnv } from "@/lib/env";
 
 export async function createClient() {
   if (isAuthDisabled()) {
@@ -35,11 +35,7 @@ export async function createServiceClient() {
     "@supabase/supabase-js"
   );
   const { url } = getSupabasePublicEnv();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!serviceRoleKey) {
-    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-  }
+  const serviceRoleKey = getServiceRoleKey();
 
   return createSupabaseClient(url, serviceRoleKey);
 }

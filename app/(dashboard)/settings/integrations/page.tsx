@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { getIntegrations } from "@/lib/actions/integrations";
 import { isOuraOAuthConfigured } from "@/lib/integrations/oura/oauth";
 import { isGoogleOAuthConfigured } from "@/lib/integrations/google/client";
+import { getIntegrationEnvStatus, getAppUrl } from "@/lib/env";
 import { IntegrationsPanel } from "@/components/settings/IntegrationsPanel";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
 
@@ -13,6 +14,8 @@ async function IntegrationsContent({
 }) {
   const params = await searchParams;
   const integrations = await getIntegrations();
+  const envStatus = getIntegrationEnvStatus();
+  const appUrl = getAppUrl();
 
   return (
     <IntegrationsPanel
@@ -21,6 +24,8 @@ async function IntegrationsContent({
       error={params.error}
       ouraOAuthConfigured={isOuraOAuthConfigured()}
       googleOAuthConfigured={isGoogleOAuthConfigured()}
+      envStatus={envStatus}
+      appUrl={appUrl}
     />
   );
 }

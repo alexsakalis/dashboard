@@ -2,6 +2,7 @@ import { addDays, startOfDay } from "date-fns";
 import { google } from "googleapis";
 import { decryptTokenSafe, encryptTokenSafe } from "@/lib/crypto";
 import {
+  getAppUrl,
   getGoogleClientCredentials,
   hasGoogleOAuthEnv,
 } from "@/lib/env";
@@ -10,7 +11,7 @@ import type { Integration } from "@/types";
 export { hasGoogleOAuthEnv as isGoogleOAuthConfigured };
 
 function getRedirectUri(): string {
-  return `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/google/callback`;
+  return `${getAppUrl()}/api/oauth/google/callback`;
 }
 
 function formatGoogleApiError(err: unknown): string {

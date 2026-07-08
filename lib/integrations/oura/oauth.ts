@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptTokenSafe, decryptTokenSafe } from "@/lib/crypto";
 import {
+  getAppUrl,
   getOuraClientCredentials,
   hasOuraOAuthEnv,
 } from "@/lib/env";
@@ -21,7 +22,7 @@ interface OuraTokenResponse {
 }
 
 function getRedirectUri(): string {
-  return `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/oura/callback`;
+  return `${getAppUrl()}/api/oauth/oura/callback`;
 }
 
 export function getOuraAuthUrl(state: string): string {
