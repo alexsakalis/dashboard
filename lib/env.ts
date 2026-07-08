@@ -12,6 +12,27 @@ function resolveEnv(...names: string[]): string | undefined {
   return undefined;
 }
 
+/** Normalize and validate HTTP(S) URLs from env vars (e.g. add https:// if missing). */
+function normalizeHttpUrl(value: string | undefined): string | undefined {
+  const trimmed = trimEnv(value);
+  if (!trimmed) return undefined;
+
+  let candidate = trimmed;
+  if (!/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export function getEnvConfigLocation(): string {
   return process.env.VERCEL === "1"
     ? "Vercel → Project → Settings → Environment Variables (Production), then redeploy"
@@ -19,7 +40,9 @@ export function getEnvConfigLocation(): string {
 }
 
 function resolveSupabaseUrl(): string | undefined {
-  return resolveEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
+  return normalizeHttpUrl(
+    resolveEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"),
+  );
 }
 
 function resolveSupabaseAnonKey(): string | undefined {
@@ -38,8 +61,15 @@ export function getSupabasePublicEnv(): {
   const anonKey = resolveSupabaseAnonKey();
 
   if (!url || !anonKey) {
+    const rawUrl = resolveEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
+    const urlHint = rawUrl
+      ? "NEXT_PUBLIC_SUPABASE_URL must be a valid URL (include https://, e.g. https://xyz.supabase.co)."
+      : `Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in ${getEnvConfigLocation()}.`;
+
     throw new Error(
-      `Missing Supabase URL or anon key. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in ${getEnvConfigLocation()}.`,
+      rawUrl && !url
+        ? urlHint
+        : `Missing Supabase URL or anon key. ${urlHint}`,
     );
   }
 
@@ -173,8 +203,15 @@ export function getIntegrationEnvStatus() {
 }
 
 export function getDeploymentHealth() {
+  const rawSupabaseUrl = resolveEnv(
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_URL",
+  );
+  const supabaseUrl = resolveSupabaseUrl();
+
   return {
-    supabaseUrl: Boolean(resolveSupabaseUrl()),
+    supabaseUrlConfigured: Boolean(rawSupabaseUrl),
+    supabaseUrlValid: Boolean(supabaseUrl),
     supabaseAnonKey: Boolean(resolveSupabaseAnonKey()),
     supabasePublic: hasSupabasePublicEnv(),
     supabaseServiceRole: hasServiceRoleKey(),

@@ -43,6 +43,17 @@ function main() {
     process.exit(1);
   }
 
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (
+    supabaseUrl &&
+    !/^https?:\/\//i.test(supabaseUrl) &&
+    !/^[a-z0-9-]+\.supabase\.co\/?$/i.test(supabaseUrl)
+  ) {
+    console.warn(
+      "Warning: NEXT_PUBLIC_SUPABASE_URL should be a full https URL, e.g. https://xyz.supabase.co",
+    );
+  }
+
   console.log("Local .env.local looks complete.");
   console.log("");
   console.log(

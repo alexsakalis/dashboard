@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isEmailAllowed } from "@/lib/auth";
+import { hasSupabasePublicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
 export async function signInWithPassword(
@@ -20,6 +21,13 @@ export async function signInWithPassword(
     return { error: "This email is not authorized" };
   }
 
+  if (!hasSupabasePublicEnv()) {
+    return {
+      error:
+        "Server misconfigured. Set NEXT_PUBLIC_SUPABASE_URL (with https://) and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel.",
+    };
+  }
+
   try {
     const supabase = await createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -29,8 +37,15 @@ export async function signInWithPassword(
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sign in failed";
-    if (message.includes("NEXT_PUBLIC_SUPABASE")) {
-      return { error: "Server misconfigured. Set Supabase env vars in Vercel." };
+    if (
+      message.includes("NEXT_PUBLIC_SUPABASE") ||
+      message.includes("Invalid supabaseUrl") ||
+      message.includes("valid URL")
+    ) {
+      return {
+        error:
+          "Server misconfigured. Set NEXT_PUBLIC_SUPABASE_URL to your full Supabase URL (https://xyz.supabase.co) in Vercel.",
+      };
     }
     return { error: message };
   }
