@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { encryptTokenSafe, decryptTokenSafe } from "@/lib/crypto";
+import { decryptIntegrationToken, encryptTokenSafe } from "@/lib/crypto";
 import {
   getAppUrl,
   getOuraClientCredentials,
@@ -53,7 +52,18 @@ async function requestOuraToken(
   });
 
   if (!res.ok) {
-    throw new Error(`Oura token error: ${res.status} ${await res.text()}`);
+    const body = await res.text();
+    const lower = body.toLowerCase();
+    if (
+      res.status === 401 ||
+      lower.includes("invalid_grant") ||
+      lower.includes("expired")
+    ) {
+      throw new Error(
+        "Oura session expired. Disconnect and reconnect Oura in Settings.",
+      );
+    }
+    throw new Error(`Oura token error: ${res.status} ${body}`);
   }
 
   return res.json() as Promise<OuraTokenResponse>;
@@ -87,15 +97,11 @@ async function refreshOuraAccessToken(refreshToken: string) {
 }
 
 function decryptStoredToken(stored: string): string {
-  if (!stored.includes(":")) {
-    return stored;
-  }
-  return decryptTokenSafe(stored);
+  return decryptIntegrationToken(stored);
 }
 
 export async function getOuraAccessToken(
   integration: Integration,
-  supabase?: SupabaseClient,
 ): Promise<string> {
   const refreshToken = integration.refresh_token_enc
     ? decryptStoredToken(integration.refresh_token_enc)
@@ -116,7 +122,8 @@ export async function getOuraAccessToken(
   }
 
   const tokens = await refreshOuraAccessToken(refreshToken);
-  const db = supabase ?? (await createServiceClient());
+  // Always persist refreshed tokens with the service role (works from cron + manual sync).
+  const db = await createServiceClient();
   const { error } = await db
     .from("integrations")
     .update({

@@ -1,48 +1,29 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { syncGoogleCalendarIntegrationRows } from "@/lib/integrations/providers/google-calendar";
-import { createClient } from "@/lib/supabase/server";
-import type { Integration } from "@/types";
+import { runIntegrationsForUser } from "@/lib/integrations/runner";
 
-export async function syncGoogleCalendarIntegration(
-  integration: Integration,
-  supabase: SupabaseClient,
-): Promise<number> {
-  const result = await syncGoogleCalendarIntegrationRows(
-    integration,
-    supabase,
-    "manual",
-  );
-  if (result.status === "error") {
-    throw new Error(result.message);
-  }
-  return (result.metadata?.rowsUpserted as number | undefined) ?? 0;
-}
-
-async function getGoogleIntegration(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<Integration> {
-  const { data: integration, error } = await supabase
-    .from("integrations")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("provider", "google")
-    .eq("status", "active")
-    .single();
-
-  if (error || !integration) {
+function getGoogleRowsUpserted(
+  results: Awaited<ReturnType<typeof runIntegrationsForUser>>["results"],
+): number {
+  const googleResult = results.find((result) => result.provider === "google");
+  if (!googleResult) {
     throw new Error("Google is not connected");
   }
-
-  return integration as Integration;
+  if (googleResult.status === "skipped") {
+    throw new Error(googleResult.message);
+  }
+  if (googleResult.status === "error") {
+    throw new Error(googleResult.message);
+  }
+  return (googleResult.metadata?.rowsUpserted as number | undefined) ?? 0;
 }
 
 export async function syncGoogleCalendarForUserId(
   userId: string,
 ): Promise<number> {
-  const supabase = await createClient();
-  const integration = await getGoogleIntegration(supabase, userId);
-  return syncGoogleCalendarIntegration(integration, supabase);
+  const summary = await runIntegrationsForUser(userId, {
+    trigger: "manual",
+    providers: ["google"],
+  });
+  return getGoogleRowsUpserted(summary.results);
 }
 
 export async function syncAllGoogleCalendarIntegrations(): Promise<{
@@ -50,10 +31,15 @@ export async function syncAllGoogleCalendarIntegrations(): Promise<{
   total: number;
 }> {
   const { runAllIntegrations } = await import("@/lib/integrations/runner");
-  const summary = await runAllIntegrations({ trigger: "cron" });
-  const googleResults = summary.results.filter((r) => r.provider === "google");
+  const summary = await runAllIntegrations({
+    trigger: "cron",
+    providers: ["google"],
+  });
+  const googleResults = summary.results.filter(
+    (result) => result.provider === "google",
+  );
   return {
-    synced: googleResults.filter((r) => r.status === "success").length,
+    synced: googleResults.filter((result) => result.status === "success").length,
     total: googleResults.length,
   };
 }

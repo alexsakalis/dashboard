@@ -1,10 +1,11 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
+const ENCRYPTED_TOKEN_PATTERN = /^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/i;
 
 function getKey(): Buffer {
-  const secret = process.env.TOKEN_ENCRYPTION_KEY;
-  if (!secret) {
+  const secret = process.env.TOKEN_ENCRYPTION_KEY?.trim();
+  if (!secret || secret.includes("your-")) {
     throw new Error("TOKEN_ENCRYPTION_KEY is not set");
   }
   return scryptSync(secret, "dashboard-salt", 32);
@@ -41,6 +42,25 @@ export function decryptToken(ciphertext: string): string {
   return decrypted.toString("utf8");
 }
 
+/** Decrypt OAuth tokens stored on integration rows. Supports legacy plaintext values. */
+export function decryptIntegrationToken(stored: string): string {
+  if (!stored) {
+    throw new Error("OAuth token missing. Reconnect this integration in Settings.");
+  }
+
+  if (!ENCRYPTED_TOKEN_PATTERN.test(stored)) {
+    return stored;
+  }
+
+  try {
+    return decryptToken(stored);
+  } catch {
+    throw new Error(
+      "Could not decrypt stored OAuth token. Disconnect and reconnect this integration, or verify TOKEN_ENCRYPTION_KEY matches the value used when you connected.",
+    );
+  }
+}
+
 export function encryptTokenSafe(plaintext: string): string {
   try {
     return encryptToken(plaintext);
@@ -51,7 +71,7 @@ export function encryptTokenSafe(plaintext: string): string {
 
 export function decryptTokenSafe(ciphertext: string): string {
   try {
-    return decryptToken(ciphertext);
+    return decryptIntegrationToken(ciphertext);
   } catch {
     return ciphertext;
   }

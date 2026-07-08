@@ -58,6 +58,7 @@ export function isReauthError(message: string): boolean {
     lower.includes("expired") ||
     lower.includes("reconnect") ||
     lower.includes("invalid_grant") ||
+    lower.includes("could not decrypt") ||
     lower.includes("401") ||
     lower.includes("403") ||
     lower.includes("denied access")

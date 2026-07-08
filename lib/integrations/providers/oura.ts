@@ -11,7 +11,7 @@ async function syncOuraData(
   const startedAt = Date.now();
 
   try {
-    const dailyData = await fetchOuraData(integration, 3, ctx.supabase);
+    const dailyData = await fetchOuraData(integration, 3);
 
     for (const day of dailyData) {
       const { error } = await ctx.supabase.from("health_daily_snapshots").upsert(

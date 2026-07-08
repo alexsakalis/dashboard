@@ -251,14 +251,31 @@ function OuraCard({
           )
         ) : (
           <div className="space-y-2">
-            <Button
-              variant="secondary"
-              onClick={handleSync}
-              disabled={isPending}
-              className="w-full"
-            >
-              {isPending ? "Syncing..." : "Sync now"}
-            </Button>
+            {integration.status === "reauth_required" && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                {integration.last_message ??
+                  "Oura session expired or could not be refreshed."}{" "}
+                Reconnect to restore sync.
+              </div>
+            )}
+            {oauthConfigured && integration.status === "reauth_required" ? (
+              <a
+                href="/api/oauth/oura"
+                className={cn(buttonVariants(), "w-full")}
+              >
+                Reconnect Oura
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={handleSync}
+                disabled={isPending}
+                className="w-full"
+              >
+                {isPending ? "Syncing..." : "Sync now"}
+              </Button>
+            )}
             {syncMessage && (
               <p className="text-sm text-muted-foreground">{syncMessage}</p>
             )}
@@ -347,14 +364,31 @@ function GoogleCard({
           )
         ) : (
           <>
-            <Button
-              variant="secondary"
-              onClick={handleSyncCalendar}
-              disabled={isPending}
-              className="w-full"
-            >
-              {isPending ? "Syncing..." : "Sync calendar"}
-            </Button>
+            {integration.status === "reauth_required" && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                {integration.last_message ??
+                  "Google session expired or could not be refreshed."}{" "}
+                Reconnect to restore sync.
+              </div>
+            )}
+            {oauthConfigured && integration.status === "reauth_required" ? (
+              <a
+                href="/api/oauth/google"
+                className={cn(buttonVariants(), "w-full")}
+              >
+                Reconnect Google
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={handleSyncCalendar}
+                disabled={isPending}
+                className="w-full"
+              >
+                {isPending ? "Syncing..." : "Sync calendar"}
+              </Button>
+            )}
             {syncMessage && (
               <p className="text-sm text-muted-foreground">{syncMessage}</p>
             )}

@@ -1,6 +1,6 @@
 import { addDays, startOfDay } from "date-fns";
 import { google } from "googleapis";
-import { decryptTokenSafe, encryptTokenSafe } from "@/lib/crypto";
+import { decryptIntegrationToken, encryptTokenSafe } from "@/lib/crypto";
 import {
   getAppUrl,
   getGoogleClientCredentials,
@@ -44,7 +44,7 @@ export function getGoogleAuthUrl(state: string): string {
 function getAuthenticatedClient(integration: Integration) {
   const oauth2 = getOAuthClient();
   const refreshToken = integration.refresh_token_enc
-    ? decryptTokenSafe(integration.refresh_token_enc)
+    ? decryptIntegrationToken(integration.refresh_token_enc)
     : null;
 
   if (!refreshToken) {
