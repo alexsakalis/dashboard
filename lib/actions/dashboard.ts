@@ -19,7 +19,15 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    console.error("dashboard_summary read failed:", error.message);
+    try {
+      return await refreshDashboardSummary(user.id, supabase);
+    } catch (refreshError) {
+      console.error("dashboard_summary refresh failed:", refreshError);
+      return createDefaultDashboardSummary(user.id);
+    }
+  }
 
   if (data) {
     return data as DashboardSummary;

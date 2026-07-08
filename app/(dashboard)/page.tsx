@@ -9,6 +9,7 @@ import { HabitsCard } from "@/components/dashboard/HabitsCard";
 import { HealthCard } from "@/components/dashboard/HealthCard";
 import { SyncStatusCard } from "@/components/dashboard/SyncStatusCard";
 import { TasksCard } from "@/components/dashboard/TasksCard";
+import { requireUser } from "@/lib/auth";
 import { getDashboardSummary, refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { seedDefaultHabits } from "@/lib/actions/habits";
 
@@ -33,7 +34,9 @@ async function DashboardContent() {
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  await requireUser();
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",

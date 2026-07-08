@@ -40,8 +40,9 @@ function redirectWithSessionCookies(
   }
 
   const redirectResponse = NextResponse.redirect(url);
-  supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
-    redirectResponse.cookies.set(name, value);
+  // Preserve full cookie attributes (httpOnly, secure, sameSite) — required on Vercel.
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie);
   });
 
   return redirectResponse;

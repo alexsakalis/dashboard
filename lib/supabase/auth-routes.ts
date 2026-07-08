@@ -10,7 +10,6 @@
 const AUTH_PAGES = ["/login", "/signup"] as const;
 
 const PUBLIC_PATHS = [
-  "/",
   "/auth/callback",
   "/api/auth/callback",
   "/api/cron/sync",
