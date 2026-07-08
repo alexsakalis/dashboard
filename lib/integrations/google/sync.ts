@@ -1,11 +1,12 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { fetchCalendarEvents } from "@/lib/integrations/google/client";
 import type { Integration } from "@/types";
 
 export async function syncGoogleCalendarIntegration(
   integration: Integration,
+  supabase: SupabaseClient,
 ): Promise<number> {
-  const supabase = await createServiceClient();
   const events = await fetchCalendarEvents(integration);
 
   for (const event of events) {
@@ -37,8 +38,10 @@ export async function syncGoogleCalendarIntegration(
   return events.length;
 }
 
-async function getGoogleIntegration(userId: string): Promise<Integration> {
-  const supabase = await createServiceClient();
+async function getGoogleIntegration(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<Integration> {
   const { data: integration, error } = await supabase
     .from("integrations")
     .select("*")
@@ -57,8 +60,9 @@ async function getGoogleIntegration(userId: string): Promise<Integration> {
 export async function syncGoogleCalendarForUserId(
   userId: string,
 ): Promise<number> {
-  const integration = await getGoogleIntegration(userId);
-  return syncGoogleCalendarIntegration(integration);
+  const supabase = await createClient();
+  const integration = await getGoogleIntegration(supabase, userId);
+  return syncGoogleCalendarIntegration(integration, supabase);
 }
 
 export async function syncAllGoogleCalendarIntegrations(): Promise<{
@@ -77,7 +81,7 @@ export async function syncAllGoogleCalendarIntegrations(): Promise<{
   let synced = 0;
   for (const integration of integrations ?? []) {
     try {
-      await syncGoogleCalendarIntegration(integration as Integration);
+      await syncGoogleCalendarIntegration(integration as Integration, supabase);
       synced++;
     } catch (err) {
       console.error(
