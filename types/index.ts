@@ -1,9 +1,8 @@
 export type TaskStatus = "todo" | "done" | "archived";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
-export type FinanceEntryType = "expense" | "income" | "transfer";
-export type IntegrationProvider = "oura" | "google" | "apple_health";
-export type HealthSource = "oura" | "apple_health";
+export type IntegrationProvider = "oura" | "google";
+export type HealthSource = "oura";
 export type ScoreEventType =
   | "task_complete"
   | "habit_complete"
@@ -67,47 +66,37 @@ export interface HabitCompletion {
   completed_date: string;
 }
 
-export interface WorkoutTemplate {
-  id: string;
-  user_id: string;
-  name: string;
-  muscle_groups: string[];
-  exercises: WorkoutTemplateExercise[];
-}
-
-export interface WorkoutTemplateExercise {
-  name: string;
-  default_sets: number;
-  default_reps: number;
-  notes?: string;
-}
-
-export interface Workout {
-  id: string;
-  user_id: string;
-  name: string;
-  workout_type: string | null;
-  muscle_groups: string[];
-  started_at: string;
-  completed_at: string | null;
-  notes: string | null;
-  template_id: string | null;
-  workout_sets?: WorkoutSet[];
-}
-
-export interface WorkoutSet {
-  id: string;
-  user_id: string;
-  workout_id: string;
-  exercise_name: string;
-  set_number: number;
-  reps: number | null;
-  weight: number | null;
-  unit: string;
-  rpe: number | null;
-  is_warmup: boolean;
-  notes: string | null;
-}
+export type {
+  WorkoutSplit,
+  RecordType,
+  BodyWeightSource,
+  ProgressTrend,
+  ProgressionStatus,
+  BodyPart,
+  EquipmentType,
+  DifficultyLevel,
+  MovementType,
+  MovementPattern,
+  ExerciseLibraryEntry,
+  ExerciseUserPreferences,
+  EnrichedExerciseLibraryEntry,
+  ExerciseLibraryFilters,
+  WorkoutExercise,
+  WorkoutSet,
+  Workout,
+  WorkoutTemplateExercise,
+  WorkoutTemplate,
+  BodyWeightLog,
+  ExercisePersonalRecord,
+  GymPreferences,
+  EnrichedWorkout,
+  GymDashboardSummary,
+  LastWorkoutReference,
+  ProgressionHint,
+  ProgressChartPoint,
+  ExerciseProgressSummary,
+  WorkoutFilters,
+} from "@/types/gym";
 
 export interface HealthDailySnapshot {
   id: string;
@@ -125,21 +114,20 @@ export interface HealthDailySnapshot {
   synced_at: string;
 }
 
-export interface FinanceEntry {
-  id: string;
-  user_id: string;
-  row_id: string;
-  date: string;
-  amount: number;
-  category: string | null;
-  merchant: string | null;
-  account: string | null;
-  notes: string | null;
-  entry_type: FinanceEntryType;
-  updated_at: string;
-  sync_source: "app" | "sheet";
-  version: number;
-}
+export type {
+  CardStatus,
+  PaymentStatus,
+  PaymentMethod,
+  CreditCard,
+  CreditCardPayment,
+  CreditCardBalanceSnapshot,
+  FinancePreferences,
+  EnrichedCreditCard,
+  CreditCardPortfolioSummary,
+  CreditCardSummary,
+  PaySuggestion,
+  BalanceChartPoint,
+} from "@/types/finance";
 
 export interface DailyScore {
   id: string;

@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       tokens.refreshToken,
       tokens.accessToken,
       tokens.expiresAt,
-      { calendar_id: "all", sheet_name: "Transactions" },
+      { calendar_id: "all" },
     );
 
     cookieStore.delete("google_oauth_state");

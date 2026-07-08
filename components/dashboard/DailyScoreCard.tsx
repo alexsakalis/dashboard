@@ -14,14 +14,16 @@ export async function DailyScoreCard() {
   const progress = calculateDailyProgress(score.total_score);
 
   return (
-    <Card>
+    <Card className="border-primary/20 bg-gradient-to-br from-card via-card to-primary/5">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-medium">Daily Score</CardTitle>
+        <CardTitle className="text-base font-semibold">Daily Score</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-3xl font-bold tabular-nums">{score.total_score}</p>
+            <p className="text-4xl font-bold tabular-nums tracking-tight">
+              {score.total_score}
+            </p>
             <p className="text-sm text-muted-foreground">
               / {DAILY_SCORE_GOAL} goal
             </p>

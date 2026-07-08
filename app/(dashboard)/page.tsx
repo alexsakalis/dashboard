@@ -19,7 +19,7 @@ export default function HomePage() {
   return (
     <>
       <PageHeader title="Command Center" subtitle={today} />
-      <main className="space-y-4 px-4 py-4">
+      <main className="space-y-4 px-4 py-5">
         <Suspense fallback={<CardSkeleton />}>
           <DailyScoreCard />
         </Suspense>

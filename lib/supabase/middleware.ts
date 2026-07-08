@@ -74,7 +74,6 @@ export async function updateSession(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/auth");
     const isPublicApi =
       request.nextUrl.pathname.startsWith("/api/health") ||
-      request.nextUrl.pathname.startsWith("/api/health/sync") ||
       request.nextUrl.pathname.startsWith("/api/cron");
 
     if (!user && !isAuthRoute && !isPublicApi) {

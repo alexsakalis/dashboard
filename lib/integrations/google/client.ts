@@ -1,20 +1,7 @@
 import { addDays, startOfDay } from "date-fns";
 import { google } from "googleapis";
 import { decryptTokenSafe, encryptTokenSafe } from "@/lib/crypto";
-import type { FinanceEntry, Integration } from "@/types";
-
-const SHEET_COLUMNS = [
-  "row_id",
-  "date",
-  "amount",
-  "category",
-  "merchant",
-  "account",
-  "notes",
-  "entry_type",
-  "updated_at",
-  "sync_source",
-] as const;
+import type { Integration } from "@/types";
 
 function getRedirectUri(): string {
   return `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/google/callback`;
@@ -65,10 +52,7 @@ export function getGoogleAuthUrl(state: string): string {
   return oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/calendar.readonly",
-    ],
+    scope: ["https://www.googleapis.com/auth/calendar.readonly"],
     state,
   });
 }
@@ -89,10 +73,6 @@ function getAuthenticatedClient(integration: Integration) {
   return oauth2;
 }
 
-export function getSheetsClient(integration: Integration) {
-  return google.sheets({ version: "v4", auth: getAuthenticatedClient(integration) });
-}
-
 export function getCalendarClient(integration: Integration) {
   return google.calendar({ version: "v3", auth: getAuthenticatedClient(integration) });
 }
@@ -111,133 +91,6 @@ export async function exchangeGoogleCode(code: string) {
   } catch (err) {
     throw new Error(formatGoogleApiError(err));
   }
-}
-
-function rowToEntry(
-  userId: string,
-  row: string[],
-  headerMap: Record<string, number>,
-): FinanceEntry | null {
-  const rowId = row[headerMap.row_id];
-  const date = row[headerMap.date];
-  const amount = row[headerMap.amount];
-
-  if (!rowId || !date || !amount) return null;
-
-  return {
-    id: rowId,
-    user_id: userId,
-    row_id: rowId,
-    date,
-    amount: parseFloat(amount),
-    category: row[headerMap.category] || null,
-    merchant: row[headerMap.merchant] || null,
-    account: row[headerMap.account] || null,
-    notes: row[headerMap.notes] || null,
-    entry_type: (row[headerMap.entry_type] as FinanceEntry["entry_type"]) || "expense",
-    updated_at: row[headerMap.updated_at] || new Date().toISOString(),
-    sync_source: (row[headerMap.sync_source] as "app" | "sheet") || "sheet",
-    version: 1,
-  };
-}
-
-function entryToRow(entry: FinanceEntry): string[] {
-  return [
-    entry.row_id,
-    entry.date,
-    String(entry.amount),
-    entry.category ?? "",
-    entry.merchant ?? "",
-    entry.account ?? "",
-    entry.notes ?? "",
-    entry.entry_type,
-    entry.updated_at,
-    entry.sync_source,
-  ];
-}
-
-export async function pullFinanceFromSheet(
-  integration: Integration,
-  userId: string,
-): Promise<FinanceEntry[]> {
-  const sheets = getSheetsClient(integration);
-  const spreadsheetId = extractSpreadsheetId(
-    integration.config.spreadsheet_id as string,
-  );
-  const sheetName = (integration.config.sheet_name as string) || "Transactions";
-
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${sheetName}!A:J`,
-  });
-
-  const rows = response.data.values ?? [];
-  if (rows.length === 0) return [];
-
-  const headers = rows[0].map((h) => h.toLowerCase());
-  const headerMap = Object.fromEntries(
-    SHEET_COLUMNS.map((col) => [col, headers.indexOf(col)]),
-  ) as Record<(typeof SHEET_COLUMNS)[number], number>;
-
-  return rows
-    .slice(1)
-    .map((row) => rowToEntry(userId, row, headerMap))
-    .filter((e): e is FinanceEntry => e !== null);
-}
-
-export async function pushFinanceToSheet(
-  integration: Integration,
-  entries: FinanceEntry[],
-): Promise<number> {
-  if (entries.length === 0) return 0;
-
-  const sheets = getSheetsClient(integration);
-  const spreadsheetId = extractSpreadsheetId(
-    integration.config.spreadsheet_id as string,
-  );
-  const sheetName = (integration.config.sheet_name as string) || "Transactions";
-
-  const headerRow = [...SHEET_COLUMNS];
-  const dataRows = entries.map(entryToRow);
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: `${sheetName}!A1`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: {
-      values: [headerRow, ...dataRows],
-    },
-  });
-
-  return entries.length;
-}
-
-export async function ensureSheetHeaders(integration: Integration) {
-  const sheets = getSheetsClient(integration);
-  const spreadsheetId = extractSpreadsheetId(
-    integration.config.spreadsheet_id as string,
-  );
-  const sheetName = (integration.config.sheet_name as string) || "Transactions";
-
-  const existing = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${sheetName}!A1:J1`,
-  });
-
-  if (!existing.data.values?.length) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${sheetName}!A1`,
-      valueInputOption: "RAW",
-      requestBody: { values: [[...SHEET_COLUMNS]] },
-    });
-  }
-}
-
-export function extractSpreadsheetId(input: string): string {
-  const trimmed = input.trim();
-  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match?.[1] ?? trimmed;
 }
 
 function mapGoogleEvent(

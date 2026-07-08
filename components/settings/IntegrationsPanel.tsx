@@ -4,16 +4,12 @@ import { useState, useTransition } from "react";
 import { CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  saveSpreadsheetConfig,
   disconnectIntegration,
   syncOuraNow,
   syncGoogleCalendarNow,
-  syncGoogleSheetsNow,
 } from "@/lib/actions/integrations";
 
 interface IntegrationSummary {
@@ -39,10 +35,6 @@ export function IntegrationsPanel({
 }) {
   const oura = integrations.find((i) => i.provider === "oura");
   const google = integrations.find((i) => i.provider === "google");
-  const appleHealth = integrations.find((i) => i.provider === "apple_health");
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const healthSyncUrl = `${appUrl}/api/health/sync`;
 
   return (
     <div className="space-y-4">
@@ -72,10 +64,6 @@ export function IntegrationsPanel({
       <GoogleCard
         integration={google}
         oauthConfigured={googleOAuthConfigured}
-      />
-      <AppleHealthCard
-        integration={appleHealth}
-        syncUrl={healthSyncUrl}
       />
     </div>
   );
@@ -178,19 +166,8 @@ function GoogleCard({
   integration?: IntegrationSummary;
   oauthConfigured: boolean;
 }) {
-  const [spreadsheetId, setSpreadsheetId] = useState(
-    (integration?.config?.spreadsheet_id as string) ?? "",
-  );
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const hasSpreadsheet = Boolean(integration?.config?.spreadsheet_id);
-
-  function handleSaveSpreadsheet() {
-    setSyncMessage(null);
-    startTransition(async () => {
-      await saveSpreadsheetConfig(spreadsheetId);
-    });
-  }
 
   function handleSyncCalendar() {
     setSyncMessage(null);
@@ -204,18 +181,6 @@ function GoogleCard({
     });
   }
 
-  function handleSyncSheets() {
-    setSyncMessage(null);
-    startTransition(async () => {
-      const result = await syncGoogleSheetsNow();
-      if ("error" in result) {
-        setSyncMessage(result.error);
-      } else {
-        setSyncMessage(`Synced ${result.rows} finance row(s).`);
-      }
-    });
-  }
-
   function handleDisconnect() {
     startTransition(async () => {
       await disconnectIntegration("google");
@@ -225,12 +190,12 @@ function GoogleCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">Google (Sheets + Calendar)</CardTitle>
+        <CardTitle className="text-base">Google Calendar</CardTitle>
         <StatusBadge status={integration?.status} synced={integration?.last_synced_at} />
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Connect for finance sync and calendar events. Create OAuth credentials in{" "}
+          Connect for calendar events. Create OAuth credentials in{" "}
           <a
             href="https://console.cloud.google.com/apis/credentials"
             target="_blank"
@@ -272,33 +237,6 @@ function GoogleCard({
             >
               {isPending ? "Syncing..." : "Sync calendar"}
             </Button>
-            <div className="space-y-2">
-              <Label htmlFor="spreadsheet_id">Spreadsheet ID</Label>
-              <Input
-                id="spreadsheet_id"
-                placeholder="Paste ID or full Google Sheets URL"
-                value={spreadsheetId}
-                onChange={(e) => setSpreadsheetId(e.target.value)}
-              />
-              <Button
-                onClick={handleSaveSpreadsheet}
-                disabled={!spreadsheetId || isPending}
-                variant="secondary"
-                className="w-full"
-              >
-                Save Spreadsheet
-              </Button>
-            </div>
-            {hasSpreadsheet && (
-              <Button
-                variant="secondary"
-                onClick={handleSyncSheets}
-                disabled={isPending}
-                className="w-full"
-              >
-                {isPending ? "Syncing..." : "Sync finance sheet"}
-              </Button>
-            )}
             {syncMessage && (
               <p className="text-sm text-muted-foreground">{syncMessage}</p>
             )}
@@ -307,48 +245,6 @@ function GoogleCard({
             </Button>
           </>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function AppleHealthCard({
-  integration,
-  syncUrl,
-}: {
-  integration?: IntegrationSummary;
-  syncUrl: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">Apple Health</CardTitle>
-        <StatusBadge status={integration?.status} synced={integration?.last_synced_at} />
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          Use{" "}
-          <a
-            href="https://apps.apple.com/us/app/health-auto-export-json-csv/id1115567069"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            Health Auto Export
-          </a>{" "}
-          (Premium) to POST data to this webhook:
-        </p>
-        <div className="rounded-lg bg-muted p-3 font-mono text-xs break-all">
-          {syncUrl}
-        </div>
-        <p className="text-muted-foreground">
-          Set Authorization header:{" "}
-          <code className="rounded bg-muted px-1">Bearer YOUR_HEALTH_SYNC_API_KEY</code>
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Configure <code>HEALTH_SYNC_API_KEY</code> and{" "}
-          <code>HEALTH_SYNC_USER_ID</code> in your environment variables.
-        </p>
       </CardContent>
     </Card>
   );

@@ -15,7 +15,25 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Command Center",
   description: "Personal daily-life dashboard",
-  manifest: "/manifest.webmanifest",
+  applicationName: "Command Center",
+  manifest: "/manifest.json",
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      {
+        url: "/icons/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -28,10 +46,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
-  ],
+  viewportFit: "cover",
+  colorScheme: "dark",
+  themeColor: "#0b0d14",
 };
 
 export default function RootLayout({
@@ -42,9 +59,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} dark h-full`}
     >
-      <body className="min-h-full bg-background text-foreground">
+      <body className="min-h-dvh font-sans antialiased">
         {children}
       </body>
     </html>

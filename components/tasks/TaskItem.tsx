@@ -24,7 +24,7 @@ export function TaskItem({ task, compact }: TaskItemProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-border/50 p-3 transition-colors",
+        "flex items-center gap-3 rounded-xl border border-border/40 bg-card/40 p-3 transition-colors",
         isPending && "opacity-50",
         compact ? "p-2.5" : "p-3",
       )}

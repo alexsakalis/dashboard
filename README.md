@@ -8,8 +8,8 @@ Personal daily-life dashboard — mobile-first command center for tasks, habits,
 cp .env.local.example .env.local
 # Fill in Supabase and other credentials
 
-# Run Supabase migration (SQL Editor or CLI)
-# supabase/migrations/20260706120000_initial_schema.sql
+# Run Supabase migrations (SQL Editor or CLI)
+# supabase/migrations/*.sql — including gym workout tracker migrations
 
 npm install
 npm run dev
@@ -22,9 +22,9 @@ Open [http://localhost:3000](http://localhost:3000)
 - **Dashboard** — Daily score, tasks, habits, health, gym, finance, calendar cards
 - **Tasks** — CRUD with priorities, due dates, recurrence, motivational scoring
 - **Habits** — Daily toggles with streaks and score integration
-- **Gym** — Workout logging with sets/reps/weight, history, templates
-- **Health** — Oura API sync + Apple Health webhook (Health Auto Export)
-- **Finance** — Google Sheets bidirectional sync
+- **Gym** — Full workout tracker: splits (push/pull/legs), set logging, history, templates, progress charts, body weight, PRs
+- **Health** — Oura API sync
+- **Finance** — Credit card tracker with manual entry
 - **Calendar** — Google Calendar events (iCloud via Google sync bridge)
 
 ## Stack

@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { ArrowRight, Activity, Heart, Moon, Footprints } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getHealthSnapshots } from "@/lib/actions/dashboard";
-import { mergeHealthMetrics } from "@/lib/integrations/health-ingest/parser";
+import { mergeHealthMetrics } from "@/lib/integrations/health-metrics";
 
 function MetricItem({
   icon: Icon,
@@ -17,7 +17,7 @@ function MetricItem({
   unit?: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 rounded-lg bg-muted/50 p-3">
+    <div className="flex flex-col items-center gap-1 rounded-xl bg-muted/35 p-3 ring-1 ring-border/40">
       <Icon className="h-4 w-4 text-muted-foreground" />
       <p className="text-lg font-semibold tabular-nums">
         {value !== null ? value : "—"}
@@ -55,7 +55,7 @@ export async function HealthCard() {
       <CardContent>
         {!hasData ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            Connect Oura or Apple Health in Settings.
+            Connect Oura in Settings.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

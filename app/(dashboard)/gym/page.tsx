@@ -1,54 +1,74 @@
 import Link from "next/link";
-import { format } from "date-fns";
+import { ChevronRight, History, LineChart, Scale, LayoutTemplate, Dumbbell } from "lucide-react";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { getWorkouts } from "@/lib/actions/gym";
-import { CreateWorkoutDialog } from "@/components/gym/CreateWorkoutDialog";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
+import { getGymDashboard, getLastWorkoutReference } from "@/lib/actions/gym";
+import { StartWorkoutSheet } from "@/components/gym/StartWorkoutSheet";
+import { QuickRepeatButtons } from "@/components/gym/QuickRepeatButtons";
+import {
+  GymDashboardStats,
+  LastWorkoutCard,
+  RecentPRsList,
+} from "@/components/gym/GymDashboardStats";
+import { SPLIT_LABELS } from "@/lib/gym/constants";
+import { Card } from "@/components/ui/card";
 
-async function WorkoutHistory() {
-  const workouts = await getWorkouts(20);
+async function GymDashboardContent() {
+  const summary = await getGymDashboard();
+  const lastRef = await getLastWorkoutReference(summary.suggestedSplit);
 
-  if (workouts.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        No workouts logged yet. Start your first session!
-      </p>
-    );
-  }
+  const navLinks = [
+    { href: "/gym/exercises", label: "Exercises", icon: Dumbbell },
+    { href: "/gym/history", label: "History", icon: History },
+    { href: "/gym/progress", label: "Progress", icon: LineChart },
+    { href: "/gym/body-weight", label: "Body weight", icon: Scale },
+    { href: "/gym/templates", label: "Templates", icon: LayoutTemplate },
+  ];
 
   return (
-    <div className="space-y-3">
-      {workouts.map((workout) => (
-        <Link key={workout.id} href={`/gym/${workout.id}`}>
-          <Card className="transition-colors hover:bg-muted/50">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium">{workout.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(workout.started_at), "MMM d, yyyy")}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {workout.muscle_groups?.map((group: string) => (
-                    <Badge key={group} variant="secondary" className="text-xs">
-                      {group}
-                    </Badge>
-                  ))}
-                </div>
+    <div className="space-y-5">
+      <GymDashboardStats summary={summary} />
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="section-label">Quick start</h2>
+          <StartWorkoutSheet
+            defaultSplit={summary.suggestedSplit}
+            lastReference={lastRef}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Suggested next: {SPLIT_LABELS[summary.suggestedSplit]}
+        </p>
+        <QuickRepeatButtons />
+      </div>
+
+      <LastWorkoutCard summary={summary} />
+      <RecentPRsList summary={summary} />
+
+      <div className="space-y-2">
+        <h2 className="section-label">Explore</h2>
+        <Card className="gap-0 overflow-hidden py-0">
+          {navLinks.map(({ href, label, icon: Icon }, index) => (
+            <Link
+              key={href}
+              href={href}
+              className="block transition-colors hover:bg-muted/50 active:bg-muted/70"
+            >
+              <div
+                className={`flex items-center gap-4 px-4 py-3.5 ${
+                  index < navLinks.length - 1 ? "border-b border-border" : ""
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <span className="flex-1 font-medium">{label}</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
-              {workout.workout_sets && workout.workout_sets.length > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {workout.workout_sets.length} sets logged
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </Link>
-      ))}
+            </Link>
+          ))}
+        </Card>
+      </div>
     </div>
   );
 }
@@ -58,22 +78,11 @@ export default function GymPage() {
     <>
       <PageHeader
         title="Gym"
-        subtitle="Log workouts & track progress"
-        action={
-          <div className="flex gap-2">
-            <Link
-              href="/gym/templates"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Templates
-            </Link>
-            <CreateWorkoutDialog />
-          </div>
-        }
+        subtitle="Track workouts & progress"
       />
       <main className="px-4 py-4">
         <Suspense fallback={<CardSkeleton />}>
-          <WorkoutHistory />
+          <GymDashboardContent />
         </Suspense>
       </main>
     </>

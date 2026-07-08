@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "generate-icons": "node scripts/generate-pwa-icons.mjs",
+    "build": "npm run generate-icons && next build",
     "start": "next start",
     "lint": "eslint",
     "create-user": "node scripts/create-user.mjs"
@@ -40,6 +41,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "png-to-ico": "^2.1.8",
+    "sharp": "^0.34.3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

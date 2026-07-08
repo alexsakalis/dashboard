@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { getHealthSnapshots } from "@/lib/actions/dashboard";
-import { mergeHealthMetrics } from "@/lib/integrations/health-ingest/parser";
+import { mergeHealthMetrics } from "@/lib/integrations/health-metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
 
@@ -13,7 +13,7 @@ async function HealthDetails() {
   if (dates.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        No health data yet. Connect Oura or Apple Health in Settings.
+        No health data yet. Connect Oura in Settings.
       </p>
     );
   }
@@ -73,7 +73,7 @@ function Metric({
 export default function HealthPage() {
   return (
     <>
-      <PageHeader title="Health" subtitle="Oura + Apple Health" />
+      <PageHeader title="Health" subtitle="Oura Ring" />
       <main className="px-4 py-4">
         <Suspense fallback={<CardSkeleton />}>
           <HealthDetails />

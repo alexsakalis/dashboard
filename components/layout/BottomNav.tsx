@@ -21,8 +21,8 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto flex h-16 max-w-lg items-center justify-around px-2">
+    <nav className="fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="surface-glass mx-auto flex h-[3.75rem] max-w-lg items-center justify-around rounded-2xl px-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive =
             href === "/"
@@ -34,19 +34,23 @@ export function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                "flex min-w-[64px] flex-col items-center gap-1 rounded-lg px-3 py-2 text-xs transition-colors",
+                "flex min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-2 text-[11px] font-medium transition-all",
                 isActive
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-primary/12 text-primary"
+                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
               )}
             >
-              <Icon className={cn("h-5 w-5", isActive && "stroke-[2.5]")} />
-              <span className={cn(isActive && "font-medium")}>{label}</span>
+              <Icon
+                className={cn(
+                  "h-[1.125rem] w-[1.125rem]",
+                  isActive && "stroke-[2.25]",
+                )}
+              />
+              <span>{label}</span>
             </Link>
           );
         })}
       </div>
-      <div className="h-[env(safe-area-inset-bottom)]" />
     </nav>
   );
 }

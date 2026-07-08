@@ -3,7 +3,7 @@
 ## 1. Supabase Setup
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Run the migration in `supabase/migrations/20260706120000_initial_schema.sql` via the SQL Editor
+2. Run all migrations in `supabase/migrations/` via the SQL Editor (including `20260709120000_gym_workout_tracker.sql`)
 3. Enable Email auth in Authentication → Providers
 4. Copy Project URL, anon key, and service role key to env vars
 5. Create your login account: `npm run create-user -- your-password`
@@ -30,15 +30,12 @@ Generate secrets:
 ```bash
 openssl rand -hex 32  # TOKEN_ENCRYPTION_KEY
 openssl rand -hex 32  # CRON_SECRET
-openssl rand -hex 32  # HEALTH_SYNC_API_KEY
 ```
-
-After first login, copy your user UUID from Supabase Auth → Users into `HEALTH_SYNC_USER_ID`.
 
 ## 3. Google OAuth
 
 1. Create a project in [Google Cloud Console](https://console.cloud.google.com)
-2. Enable Google Sheets API and Google Calendar API
+2. Enable Google Calendar API
 3. Create OAuth 2.0 credentials (Web application)
 4. Add redirect URI: `https://your-domain.com/api/oauth/google/callback` (local: `http://localhost:3000/api/oauth/google/callback`)
 5. Copy **Client ID** and **Client Secret** to `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
@@ -56,35 +53,41 @@ Set all environment variables in Vercel project settings. The `vercel.json` cron
 
 Add env var `CRON_SECRET` and Vercel automatically sends it as `Authorization: Bearer` header to cron routes.
 
-**Hobby plan:** cron schedules must run at most once per day (UTC). This repo uses `0 6/7/8 * * *` for Oura, Calendar, and Sheets. For more frequent sync (e.g. every 30 minutes), upgrade to Pro and update `vercel.json`.
+**Hobby plan:** cron schedules must run at most once per day (UTC). This repo uses `0 6/7 * * *` for Oura and Calendar. For more frequent sync (e.g. every 30 minutes), upgrade to Pro and update `vercel.json`.
 
 ## 5. PWA (iPhone)
 
-1. Open the deployed URL in Safari
-2. Tap Share → Add to Home Screen
-3. App launches fullscreen like a native app
+1. Open the deployed URL in **Safari** (Add to Home Screen only works in Safari on iOS)
+2. Tap Share → **Add to Home Screen**
+3. Confirm the icon and name **Command Center** appear correctly
+4. Launch from the home screen — the app opens fullscreen without Safari chrome
+5. Verify layout:
+   - Header clears the notch / Dynamic Island
+   - Bottom nav clears the home indicator
+   - Login inputs do not zoom the page on focus
+6. Optional (desktop): Chrome DevTools → Application → Manifest — confirm `/manifest.json` and icons load
 
-## 6. Apple Health Setup
+**Local testing:** `npm run dev` serves the manifest and icons; for a real install test, deploy to HTTPS (Vercel) or use a LAN tunnel.
 
-1. Install [Health Auto Export](https://apps.apple.com/us/app/health-auto-export-json-csv/id1115567069) (Premium)
-2. Create REST API automation pointing to `https://your-domain.com/api/health/sync`
-3. Set header: `Authorization: Bearer YOUR_HEALTH_SYNC_API_KEY`
-4. Schedule 1–2 exports per day
+**Regenerate icons** after editing `public/icons/icon.svg`:
 
-## 7. Oura Setup
+```bash
+npm run generate-icons
+```
+
+## 6. Oura Setup
 
 1. Create an app at [Oura Cloud → API Applications](https://cloud.ouraring.com/oauth/applications)
 2. Add redirect URI: `https://your-domain.com/api/oauth/oura/callback` (local: `http://localhost:3000/api/oauth/oura/callback`)
 3. Copy **Client ID** and **Client Secret** to `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET`
 4. In the app: Settings → Integrations → **Connect Oura** (OAuth login)
 
-## 8. Verify
+## 7. Verify
 
 - [ ] Password login works
 - [ ] Tasks CRUD and scoring
 - [ ] Habits toggle with streaks
-- [ ] Gym workout logging
+- [ ] Gym: start workout, log sets, complete session, view history & progress
 - [ ] Oura cron syncs health data
-- [ ] Google Sheets finance sync
+- [ ] Credit cards can be added on Finance page
 - [ ] Google Calendar events appear
-- [ ] Health Auto Export webhook receives data

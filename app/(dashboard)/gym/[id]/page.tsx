@@ -1,12 +1,17 @@
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { createClient } from "@/lib/supabase/server";
-import { requireUser } from "@/lib/auth";
-import { AddSetForm } from "@/components/gym/AddSetForm";
-import { CompleteWorkoutButton } from "@/components/gym/CompleteWorkoutButton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { WorkoutSet } from "@/types";
+import {
+  getWorkout,
+  getLastWorkoutReference,
+  enrichWorkout,
+} from "@/lib/actions/gym";
+import { ActiveWorkoutLogger } from "@/components/gym/ActiveWorkoutLogger";
+import { CompleteWorkoutSheet } from "@/components/gym/CompleteWorkoutSheet";
+import { DeleteWorkoutDialog } from "@/components/gym/DeleteWorkoutDialog";
+import { formatSplit } from "@/lib/gym/format";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default async function WorkoutDetailPage({
   params,
@@ -14,26 +19,17 @@ export default async function WorkoutDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await requireUser();
-  const supabase = await createClient();
-
-  const { data: workout } = await supabase
-    .from("workouts")
-    .select("*, workout_sets(*)")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .single();
-
+  const workout = await getWorkout(id);
   if (!workout) notFound();
 
-  const setsByExercise = (workout.workout_sets ?? []).reduce(
-    (acc: Record<string, WorkoutSet[]>, set: WorkoutSet) => {
-      if (!acc[set.exercise_name]) acc[set.exercise_name] = [];
-      acc[set.exercise_name].push(set);
-      return acc;
-    },
-    {} as Record<string, WorkoutSet[]>,
-  );
+  const enriched = enrichWorkout(workout);
+  const isActive = !workout.completed_at;
+  const lastRef = workout.split
+    ? await getLastWorkoutReference(workout.split)
+    : null;
+
+  const reference =
+    lastRef?.workoutId !== workout.id ? lastRef : null;
 
   return (
     <>
@@ -41,48 +37,49 @@ export default async function WorkoutDetailPage({
         title={workout.name}
         subtitle={format(new Date(workout.started_at), "MMM d, yyyy")}
         action={
-          !workout.completed_at ? (
-            <CompleteWorkoutButton workoutId={workout.id} />
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {isActive ? (
+              <CompleteWorkoutSheet workoutId={workout.id} />
+            ) : (
+              <DeleteWorkoutDialog workoutId={workout.id} />
+            )}
+          </div>
         }
       />
-      <main className="space-y-4 px-4 py-4">
-        {!workout.completed_at && <AddSetForm workoutId={workout.id} />}
+      <main className="px-4 py-4">
+        <div className="mb-4 flex flex-wrap gap-2">
+          {workout.split && (
+            <Badge variant="secondary">{formatSplit(workout.split)}</Badge>
+          )}
+          {enriched.durationLabel && (
+            <Badge variant="outline">{enriched.durationLabel}</Badge>
+          )}
+          {workout.overall_rpe && (
+            <Badge variant="outline">RPE {workout.overall_rpe}</Badge>
+          )}
+        </div>
 
-        {(Object.entries(setsByExercise) as [string, WorkoutSet[]][]).map(
-          ([exercise, sets]) => (
-          <Card key={exercise}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{exercise}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                {sets
-                  ?.sort((a, b) => a.set_number - b.set_number)
-                  .map((set) => (
-                    <div
-                      key={set.id}
-                      className="flex justify-between text-sm"
-                    >
-                      <span className="text-muted-foreground">
-                        Set {set.set_number}
-                      </span>
-                      <span>
-                        {set.reps} reps × {set.weight ?? 0} {set.unit}
-                      </span>
-                    </div>
-                  ))}
-              </div>
+        {!isActive && (
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Summary</p>
+              <p className="mt-1 font-medium tabular-nums">
+                {enriched.workingSets} working sets ·{" "}
+                {Math.round(enriched.totalVolume).toLocaleString()} lb volume
+              </p>
+              {workout.body_weight && (
+                <p className="text-sm text-muted-foreground">
+                  Body weight: {workout.body_weight} {workout.body_weight_unit}
+                </p>
+              )}
+              {workout.notes && (
+                <p className="mt-2 text-sm">{workout.notes}</p>
+              )}
             </CardContent>
           </Card>
-          ),
         )}
 
-        {Object.keys(setsByExercise).length === 0 && (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Add your first set above.
-          </p>
-        )}
+        <ActiveWorkoutLogger workout={workout} lastReference={reference} />
       </main>
     </>
   );

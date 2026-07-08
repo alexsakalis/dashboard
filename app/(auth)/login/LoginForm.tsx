@@ -30,10 +30,12 @@ export function LoginForm() {
           : null);
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-dvh items-center justify-center px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))]">
+      <Card className="w-full max-w-sm border-primary/15 shadow-lg shadow-black/25">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Command Center</CardTitle>
+          <CardTitle className="text-2xl font-semibold tracking-tight">
+            Command Center
+          </CardTitle>
           <CardDescription>
             Your personal daily-life dashboard
           </CardDescription>
@@ -62,7 +64,7 @@ export function LoginForm() {
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={pending}>
+            <Button type="submit" className="h-10 w-full" disabled={pending}>
               {pending ? "Signing in..." : "Sign in"}
             </Button>
           </form>
