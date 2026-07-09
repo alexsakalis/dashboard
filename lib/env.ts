@@ -101,6 +101,46 @@ export function hasServiceRoleKey(): boolean {
   }
 }
 
+export function getTokenEncryptionSecret(): string {
+  const secret = resolveEnv("TOKEN_ENCRYPTION_KEY");
+  if (!secret) {
+    throw new Error(
+      `Missing TOKEN_ENCRYPTION_KEY. Set it in ${getEnvConfigLocation()}.`,
+    );
+  }
+
+  return secret;
+}
+
+export function hasTokenEncryptionKey(): boolean {
+  try {
+    getTokenEncryptionSecret();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getCronSecret(): string {
+  const secret = resolveEnv("CRON_SECRET");
+  if (!secret) {
+    throw new Error(
+      `Missing CRON_SECRET. Set it in ${getEnvConfigLocation()}.`,
+    );
+  }
+
+  return secret;
+}
+
+export function hasCronSecret(): boolean {
+  try {
+    getCronSecret();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getGoogleClientCredentials(): {
   clientId: string;
   clientSecret: string;
@@ -185,10 +225,7 @@ export function getIntegrationEnvStatus() {
   if (!trimEnv(process.env.NEXT_PUBLIC_APP_URL)) {
     missing.push("NEXT_PUBLIC_APP_URL");
   }
-  if (
-    !trimEnv(process.env.TOKEN_ENCRYPTION_KEY) ||
-    process.env.TOKEN_ENCRYPTION_KEY?.includes("your-")
-  ) {
+  if (!hasTokenEncryptionKey()) {
     missing.push("TOKEN_ENCRYPTION_KEY");
   }
 
@@ -219,11 +256,7 @@ export function getDeploymentHealth() {
     ouraOAuth: hasOuraOAuthEnv(),
     appUrl: Boolean(trimEnv(process.env.NEXT_PUBLIC_APP_URL)),
     allowedEmails: Boolean(trimEnv(process.env.ALLOWED_EMAILS)),
-    tokenEncryptionKey:
-      Boolean(trimEnv(process.env.TOKEN_ENCRYPTION_KEY)) &&
-      !process.env.TOKEN_ENCRYPTION_KEY?.includes("your-"),
-    cronSecret:
-      Boolean(trimEnv(process.env.CRON_SECRET)) &&
-      !process.env.CRON_SECRET?.includes("your-"),
+    tokenEncryptionKey: hasTokenEncryptionKey(),
+    cronSecret: hasCronSecret(),
   };
 }
