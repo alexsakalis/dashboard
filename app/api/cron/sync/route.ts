@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { runAllIntegrations } from "@/lib/integrations/runner";
-
-function verifyCronAuth(request: Request): boolean {
-  const authHeader = request.headers.get("authorization");
-  return authHeader === `Bearer ${process.env.CRON_SECRET}`;
-}
 
 export async function GET(request: Request) {
   if (!verifyCronAuth(request)) {
