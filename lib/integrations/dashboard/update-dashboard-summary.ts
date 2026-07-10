@@ -20,6 +20,10 @@ import type {
   Workout,
 } from "@/types";
 
+type SupabaseQueryResult = {
+  error: { message?: string } | null;
+};
+
 function emptyCardData(): DashboardCardData {
   return {
     tasks_preview: [],
@@ -39,18 +43,152 @@ function emptyCardData(): DashboardCardData {
   };
 }
 
+function assertNoSupabaseErrors(
+  results: Array<[label: string, result: SupabaseQueryResult]>,
+) {
+  const failures = results.filter(([, result]) => result.error);
+  if (failures.length === 0) return;
+
+  throw new Error(
+    `dashboard_summary refresh source query failed: ${failures
+      .map(
+        ([label, result]) => `${label}: ${result.error?.message ?? "unknown"}`,
+      )
+      .join("; ")}`,
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function arrayOrDefault<T>(value: unknown, fallback: T[]): T[] {
+  return Array.isArray(value) ? (value as T[]) : fallback;
+}
+
+function normalizeDailyScoreDetail(
+  value: unknown,
+): DashboardCardData["daily_score_detail"] {
+  const defaults = emptyCardData().daily_score_detail;
+  if (!isRecord(value)) return defaults;
+
+  return {
+    task_points:
+      typeof value.task_points === "number"
+        ? value.task_points
+        : defaults.task_points,
+    habit_points:
+      typeof value.habit_points === "number"
+        ? value.habit_points
+        : defaults.habit_points,
+    streak_bonus:
+      typeof value.streak_bonus === "number"
+        ? value.streak_bonus
+        : defaults.streak_bonus,
+    total_score:
+      typeof value.total_score === "number"
+        ? value.total_score
+        : defaults.total_score,
+    tasks_completed:
+      typeof value.tasks_completed === "number"
+        ? value.tasks_completed
+        : defaults.tasks_completed,
+    habits_completed:
+      typeof value.habits_completed === "number"
+        ? value.habits_completed
+        : defaults.habits_completed,
+  };
+}
+
+function normalizeGymLastWorkout(
+  value: unknown,
+): DashboardCardData["gym_last_workout"] {
+  if (!isRecord(value)) return null;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.started_at !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: value.id,
+    name: value.name,
+    started_at: value.started_at,
+    split: typeof value.split === "string" ? value.split : null,
+  };
+}
+
+function normalizeFinance(value: unknown): DashboardCardData["finance"] {
+  if (!isRecord(value) || typeof value.card_count !== "number") return null;
+
+  return {
+    card_count: value.card_count,
+    total_owed: typeof value.total_owed === "number" ? value.total_owed : 0,
+    total_minimum:
+      typeof value.total_minimum === "number" ? value.total_minimum : 0,
+    overall_utilization:
+      typeof value.overall_utilization === "number"
+        ? value.overall_utilization
+        : null,
+    due_soon_count:
+      typeof value.due_soon_count === "number" ? value.due_soon_count : 0,
+    paid_this_month:
+      typeof value.paid_this_month === "number" ? value.paid_this_month : 0,
+  };
+}
+
+export function normalizeDashboardSummary(
+  summary: DashboardSummary,
+): DashboardSummary {
+  const defaults = emptyCardData();
+  const cardData = isRecord(summary.card_data) ? summary.card_data : {};
+
+  return {
+    ...summary,
+    card_data: {
+      tasks_preview: arrayOrDefault(
+        cardData.tasks_preview,
+        defaults.tasks_preview,
+      ),
+      habits_preview: arrayOrDefault(
+        cardData.habits_preview,
+        defaults.habits_preview,
+      ),
+      calendar_preview: arrayOrDefault(
+        cardData.calendar_preview,
+        defaults.calendar_preview,
+      ),
+      integrations_status: arrayOrDefault(
+        cardData.integrations_status,
+        defaults.integrations_status,
+      ),
+      gym_last_workout: normalizeGymLastWorkout(cardData.gym_last_workout),
+      finance: normalizeFinance(cardData.finance),
+      daily_score_detail: normalizeDailyScoreDetail(
+        cardData.daily_score_detail,
+      ),
+    },
+  };
+}
+
 async function computeHabitStreak(
   supabase: SupabaseClient,
   userId: string,
   habitId: string,
 ): Promise<number> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("habit_completions")
     .select("completed_date")
     .eq("user_id", userId)
     .eq("habit_id", habitId)
     .order("completed_date", { ascending: false })
     .limit(30);
+
+  if (error) {
+    throw new Error(`habit streak query failed: ${error.message}`);
+  }
 
   if (!data?.length) return 0;
 
@@ -77,12 +215,16 @@ async function computeScoreStreak(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<number> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("daily_scores")
     .select("date, total_score")
     .eq("user_id", userId)
     .order("date", { ascending: false })
     .limit(30);
+
+  if (error) {
+    throw new Error(`score streak query failed: ${error.message}`);
+  }
 
   if (!data?.length) return 0;
 
@@ -189,6 +331,21 @@ export async function refreshDashboardSummary(
       .eq("user_id", userId)
       .order("started_at", { ascending: false })
       .limit(20),
+  ]);
+
+  assertNoSupabaseErrors([
+    ["health_daily_snapshots", healthRes],
+    ["tasks", tasksRes],
+    ["habits", habitsRes],
+    ["habit_completions", completionsRes],
+    ["daily_scores", scoreRes],
+    ["workouts", workoutsRes],
+    ["body_weight_logs", bodyWeightRes],
+    ["credit_cards", cardsRes],
+    ["credit_card_payments", paymentsRes],
+    ["calendar_events", calendarRes],
+    ["integrations", integrationsRes],
+    ["integration_sync_logs", syncLogsRes],
   ]);
 
   const healthSnapshots = healthRes.data ?? [];
@@ -364,7 +521,7 @@ export async function refreshDashboardSummary(
     .single();
 
   if (error) throw error;
-  return data as DashboardSummary;
+  return normalizeDashboardSummary(data as DashboardSummary);
 }
 
 export function createDefaultDashboardSummary(userId: string): DashboardSummary {

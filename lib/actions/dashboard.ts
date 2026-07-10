@@ -4,6 +4,7 @@ import { startOfDay, endOfDay } from "date-fns";
 import { requireUser } from "@/lib/auth";
 import {
   createDefaultDashboardSummary,
+  normalizeDashboardSummary,
   refreshDashboardSummary,
 } from "@/lib/integrations/dashboard/update-dashboard-summary";
 import { createClient } from "@/lib/supabase/server";
@@ -30,7 +31,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   }
 
   if (data) {
-    return data as DashboardSummary;
+    return normalizeDashboardSummary(data as DashboardSummary);
   }
 
   try {
