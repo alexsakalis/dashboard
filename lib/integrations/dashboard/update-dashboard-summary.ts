@@ -143,7 +143,9 @@ export function normalizeDashboardSummary(
   summary: DashboardSummary,
 ): DashboardSummary {
   const defaults = emptyCardData();
-  const cardData = isRecord(summary.card_data) ? summary.card_data : {};
+  const cardData: Record<string, unknown> = isRecord(summary.card_data)
+    ? summary.card_data
+    : {};
 
   return {
     ...summary,
