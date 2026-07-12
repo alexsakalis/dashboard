@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { format } from "date-fns";
 import { requireUser } from "@/lib/auth";
+import { refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { createClient } from "@/lib/supabase/server";
 import { filterCreditCards, isSummaryCardName } from "@/lib/finance/cards";
 import {
@@ -29,10 +30,11 @@ import type {
   FinancePreferences,
 } from "@/types/finance";
 
-function revalidateFinancePaths(cardId?: string) {
+async function revalidateFinancePaths(cardId?: string) {
   revalidatePath("/finance");
   revalidatePath("/");
   if (cardId) revalidatePath(`/finance/${cardId}`);
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 async function upsertBalanceSnapshot(
@@ -291,7 +293,7 @@ export async function createCreditCard(formData: FormData) {
     card.credit_limit,
   );
 
-  revalidateFinancePaths();
+  await revalidateFinancePaths();
 }
 
 export async function updateCreditCard(cardId: string, formData: FormData) {
@@ -342,7 +344,7 @@ export async function updateCreditCard(cardId: string, formData: FormData) {
 
   const card = mapCreditCardRow(data as Record<string, unknown>);
   await syncCardSnapshots(supabase, user.id, card, existing.payments);
-  revalidateFinancePaths(cardId);
+  await revalidateFinancePaths(cardId);
 }
 
 export async function deleteCreditCard(cardId: string) {
@@ -356,7 +358,7 @@ export async function deleteCreditCard(cardId: string) {
     .eq("user_id", user.id);
 
   if (error) throw error;
-  revalidateFinancePaths();
+  await revalidateFinancePaths();
 }
 
 export async function createPayment(formData: FormData) {
@@ -390,7 +392,7 @@ export async function createPayment(formData: FormData) {
     await syncCardSnapshots(supabase, user.id, refreshed.card, refreshed.payments);
   }
 
-  revalidateFinancePaths(parsed.card_id);
+  await revalidateFinancePaths(parsed.card_id);
 }
 
 export async function updatePayment(paymentId: string, formData: FormData) {
@@ -433,7 +435,7 @@ export async function updatePayment(paymentId: string, formData: FormData) {
     await syncCardSnapshots(supabase, user.id, refreshed.card, refreshed.payments);
   }
 
-  revalidateFinancePaths(paymentRow.card_id as string);
+  await revalidateFinancePaths(paymentRow.card_id as string);
 }
 
 export async function deletePayment(paymentId: string) {
@@ -465,7 +467,7 @@ export async function deletePayment(paymentId: string) {
     await syncCardSnapshots(supabase, user.id, refreshed.card, refreshed.payments);
   }
 
-  revalidateFinancePaths(cardId);
+  await revalidateFinancePaths(cardId);
 }
 
 export async function updateMonthlyPaymentGoal(formData: FormData) {
@@ -484,7 +486,7 @@ export async function updateMonthlyPaymentGoal(formData: FormData) {
   );
 
   if (error) throw error;
-  revalidateFinancePaths();
+  await revalidateFinancePaths();
 }
 
 export async function getEnrichedCreditCard(cardId: string) {

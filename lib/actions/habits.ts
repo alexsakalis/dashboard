@@ -98,6 +98,8 @@ export async function createHabit(name: string, icon?: string) {
 
   if (error) throw error;
   revalidatePath("/habits");
+  revalidatePath("/");
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 export async function seedDefaultHabits(): Promise<boolean> {
@@ -131,4 +133,6 @@ export async function deleteHabit(habitId: string) {
 
   if (error) throw error;
   revalidatePath("/habits");
+  revalidatePath("/");
+  await refreshDashboardSummaryForCurrentUser();
 }
