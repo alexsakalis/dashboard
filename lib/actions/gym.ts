@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { format } from "date-fns";
 import { requireUser } from "@/lib/auth";
+import { refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { createClient } from "@/lib/supabase/server";
 import { workoutDuration } from "@/lib/gym/calculations";
 import {
@@ -63,7 +64,7 @@ async function resolveWorkoutSelect(
   return cachedUsesFullGymSchema ? FULL_WORKOUT_SELECT : LEGACY_WORKOUT_SELECT;
 }
 
-function revalidateGymPaths(workoutId?: string) {
+async function revalidateGymPaths(workoutId?: string) {
   revalidatePath("/gym");
   revalidatePath("/");
   if (workoutId) revalidatePath(`/gym/${workoutId}`);
@@ -72,6 +73,7 @@ function revalidateGymPaths(workoutId?: string) {
   revalidatePath("/gym/body-weight");
   revalidatePath("/gym/templates");
   revalidatePath("/gym/exercises");
+  await refreshDashboardSummaryForCurrentUser();
 }
 
 function sortWorkoutData<T extends Workout>(workout: T): T {
@@ -559,7 +561,7 @@ export async function createWorkout(formData: FormData) {
     await copyTemplateExercises(user.id, parsed.template_id, workout.id);
   }
 
-  revalidateGymPaths(workout.id);
+  await revalidateGymPaths(workout.id);
   return workout;
 }
 
@@ -696,7 +698,7 @@ export async function duplicateWorkoutAsNew(
 
   if (error) throw error;
   await copyWorkoutExercises(user.id, sourceId, workout.id, options.copySets ?? true);
-  revalidateGymPaths(workout.id);
+  await revalidateGymPaths(workout.id);
   return workout;
 }
 
@@ -730,7 +732,7 @@ export async function addWorkoutExercise(formData: FormData) {
     .single();
 
   if (error) throw error;
-  revalidateGymPaths(parsed.workout_id);
+  await revalidateGymPaths(parsed.workout_id);
   return data;
 }
 
@@ -745,7 +747,7 @@ export async function removeWorkoutExercise(exerciseId: string, workoutId: strin
     .eq("user_id", user.id);
 
   if (error) throw error;
-  revalidateGymPaths(workoutId);
+  await revalidateGymPaths(workoutId);
 }
 
 export async function reorderExercises(
@@ -763,7 +765,7 @@ export async function reorderExercises(
       .eq("user_id", user.id);
   }
 
-  revalidateGymPaths(workoutId);
+  await revalidateGymPaths(workoutId);
 }
 
 export async function addWorkoutSet(formData: FormData) {
@@ -805,7 +807,7 @@ export async function addWorkoutSet(formData: FormData) {
     .single();
 
   if (error) throw error;
-  revalidateGymPaths(parsed.workout_id);
+  await revalidateGymPaths(parsed.workout_id);
   return data;
 }
 
@@ -846,7 +848,7 @@ export async function updateWorkoutSet(formData: FormData) {
     await rebuildPRsForWorkout(user.id, workout);
   }
 
-  revalidateGymPaths(workoutId);
+  await revalidateGymPaths(workoutId);
 }
 
 export async function deleteWorkoutSet(setId: string, workoutId: string) {
@@ -860,7 +862,7 @@ export async function deleteWorkoutSet(setId: string, workoutId: string) {
     .eq("user_id", user.id);
 
   if (error) throw error;
-  revalidateGymPaths(workoutId);
+  await revalidateGymPaths(workoutId);
 }
 
 export async function duplicateSet(setId: string, workoutId: string) {
@@ -903,7 +905,7 @@ export async function duplicateSet(setId: string, workoutId: string) {
     .single();
 
   if (error) throw error;
-  revalidateGymPaths(workoutId);
+  await revalidateGymPaths(workoutId);
   return data;
 }
 
@@ -999,7 +1001,7 @@ export async function completeWorkout(formData: FormData) {
   const updated = await getWorkout(parsed.workout_id);
   await rebuildPRsForWorkout(user.id, updated);
 
-  revalidateGymPaths(parsed.workout_id);
+  await revalidateGymPaths(parsed.workout_id);
 }
 
 export async function deleteWorkout(workoutId: string) {
@@ -1013,7 +1015,7 @@ export async function deleteWorkout(workoutId: string) {
     .eq("user_id", user.id);
 
   if (error) throw error;
-  revalidateGymPaths();
+  await revalidateGymPaths();
 }
 
 export async function startWorkoutFromTemplate(templateId: string) {
@@ -1055,21 +1057,25 @@ export async function createWorkoutTemplate(formData: FormData) {
 
   if (error) throw error;
 
-  await supabase.from("workout_template_exercises").insert(
-    parsed.exercises.map((ex, i) => ({
-      template_id: template.id,
-      user_id: user.id,
-      exercise_library_id: ex.exercise_library_id ?? null,
-      exercise_name: ex.exercise_name,
-      muscle_group: ex.muscle_group,
-      default_sets: ex.default_sets,
-      default_reps: ex.default_reps,
-      sort_order: i,
-      notes: ex.notes,
-    })),
-  );
+  const { error: insertExercisesError } = await supabase
+    .from("workout_template_exercises")
+    .insert(
+      parsed.exercises.map((ex, i) => ({
+        template_id: template.id,
+        user_id: user.id,
+        exercise_library_id: ex.exercise_library_id ?? null,
+        exercise_name: ex.exercise_name,
+        muscle_group: ex.muscle_group,
+        default_sets: ex.default_sets,
+        default_reps: ex.default_reps,
+        sort_order: i,
+        notes: ex.notes,
+      })),
+    );
 
-  revalidateGymPaths();
+  if (insertExercisesError) throw insertExercisesError;
+
+  await revalidateGymPaths();
   return template;
 }
 
@@ -1103,26 +1109,33 @@ export async function updateWorkoutTemplate(
 
   if (error) throw error;
 
-  await supabase
+  const { error: deleteExercisesError } = await supabase
     .from("workout_template_exercises")
     .delete()
-    .eq("template_id", templateId);
+    .eq("template_id", templateId)
+    .eq("user_id", user.id);
 
-  await supabase.from("workout_template_exercises").insert(
-    parsed.exercises.map((ex, i) => ({
-      template_id: templateId,
-      user_id: user.id,
-      exercise_library_id: ex.exercise_library_id ?? null,
-      exercise_name: ex.exercise_name,
-      muscle_group: ex.muscle_group,
-      default_sets: ex.default_sets,
-      default_reps: ex.default_reps,
-      sort_order: i,
-      notes: ex.notes,
-    })),
-  );
+  if (deleteExercisesError) throw deleteExercisesError;
 
-  revalidateGymPaths();
+  const { error: insertExercisesError } = await supabase
+    .from("workout_template_exercises")
+    .insert(
+      parsed.exercises.map((ex, i) => ({
+        template_id: templateId,
+        user_id: user.id,
+        exercise_library_id: ex.exercise_library_id ?? null,
+        exercise_name: ex.exercise_name,
+        muscle_group: ex.muscle_group,
+        default_sets: ex.default_sets,
+        default_reps: ex.default_reps,
+        sort_order: i,
+        notes: ex.notes,
+      })),
+    );
+
+  if (insertExercisesError) throw insertExercisesError;
+
+  await revalidateGymPaths();
 }
 
 export async function deleteWorkoutTemplate(templateId: string) {
@@ -1137,7 +1150,7 @@ export async function deleteWorkoutTemplate(templateId: string) {
     .eq("is_system", false);
 
   if (error) throw error;
-  revalidateGymPaths();
+  await revalidateGymPaths();
 }
 
 export async function logBodyWeight(formData: FormData) {
@@ -1164,7 +1177,7 @@ export async function logBodyWeight(formData: FormData) {
   );
 
   if (error) throw error;
-  revalidateGymPaths();
+  await revalidateGymPaths();
 }
 
 export async function createCustomExercise(name: string, muscleGroup: string) {
