@@ -131,15 +131,25 @@ export async function completeTask(taskId: string) {
 
   if (fetchError || !task) throw fetchError ?? new Error("Task not found");
 
-  const { error } = await supabase
+  const { data: updatedTask, error } = await supabase
     .from("tasks")
     .update({
       status: "done",
       completed_at: new Date().toISOString(),
     })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .eq("user_id", user.id)
+    .eq("status", "todo")
+    .select("id")
+    .maybeSingle();
 
   if (error) throw error;
+  if (!updatedTask) {
+    revalidatePath("/");
+    revalidatePath("/tasks");
+    await refreshDashboardSummaryForCurrentUser();
+    return;
+  }
 
   await awardTaskPoints(
     user.id,
