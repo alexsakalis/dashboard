@@ -8,7 +8,12 @@ import { createClient } from "@/lib/supabase/server";
 import {
   awardHabitPoints,
   calculateHabitStreak,
+  revokeHabitPoints,
 } from "@/lib/scoring/actions";
+
+function isUniqueViolation(error: { code?: string } | null) {
+  return error?.code === "23505";
+}
 
 export async function getHabits() {
   const user = await requireUser();
@@ -48,37 +53,56 @@ export async function toggleHabit(habitId: string) {
   const supabase = await createClient();
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("habit_completions")
     .select("id")
+    .eq("user_id", user.id)
     .eq("habit_id", habitId)
     .eq("completed_date", today)
     .maybeSingle();
 
+  if (existingError) throw existingError;
+
   if (existing) {
-    await supabase.from("habit_completions").delete().eq("id", existing.id);
+    const { data: deletedCompletion, error: deleteError } = await supabase
+      .from("habit_completions")
+      .delete()
+      .eq("id", existing.id)
+      .eq("user_id", user.id)
+      .select("id")
+      .maybeSingle();
+
+    if (deleteError) throw deleteError;
+    if (deletedCompletion) await revokeHabitPoints(user.id, habitId);
   } else {
-    const { data: habit } = await supabase
+    const { data: habit, error: habitError } = await supabase
       .from("habits")
       .select("*")
       .eq("id", habitId)
+      .eq("user_id", user.id)
       .single();
 
-    if (!habit) throw new Error("Habit not found");
+    if (habitError || !habit) throw habitError ?? new Error("Habit not found");
 
-    await supabase.from("habit_completions").insert({
-      user_id: user.id,
-      habit_id: habitId,
-      completed_date: today,
-    });
+    const { error: insertError } = await supabase
+      .from("habit_completions")
+      .insert({
+        user_id: user.id,
+        habit_id: habitId,
+        completed_date: today,
+      });
 
-    const streak = await calculateHabitStreak(user.id, habitId);
-    await awardHabitPoints(
-      user.id,
-      habitId,
-      habit.points_per_completion,
-      streak,
-    );
+    if (insertError) {
+      if (!isUniqueViolation(insertError)) throw insertError;
+    } else {
+      const streak = await calculateHabitStreak(user.id, habitId);
+      await awardHabitPoints(
+        user.id,
+        habitId,
+        habit.points_per_completion,
+        streak,
+      );
+    }
   }
 
   revalidatePath("/");

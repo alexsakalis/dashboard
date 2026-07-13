@@ -994,6 +994,8 @@ export async function completeWorkout(formData: FormData) {
       },
       { onConflict: "user_id,logged_date,source" },
     );
+
+    if (bodyWeightError) throw bodyWeightError;
   }
 
   const updated = await getWorkout(parsed.workout_id);
@@ -1055,19 +1057,23 @@ export async function createWorkoutTemplate(formData: FormData) {
 
   if (error) throw error;
 
-  await supabase.from("workout_template_exercises").insert(
-    parsed.exercises.map((ex, i) => ({
-      template_id: template.id,
-      user_id: user.id,
-      exercise_library_id: ex.exercise_library_id ?? null,
-      exercise_name: ex.exercise_name,
-      muscle_group: ex.muscle_group,
-      default_sets: ex.default_sets,
-      default_reps: ex.default_reps,
-      sort_order: i,
-      notes: ex.notes,
-    })),
-  );
+  const { error: templateExercisesError } = await supabase
+    .from("workout_template_exercises")
+    .insert(
+      parsed.exercises.map((ex, i) => ({
+        template_id: template.id,
+        user_id: user.id,
+        exercise_library_id: ex.exercise_library_id ?? null,
+        exercise_name: ex.exercise_name,
+        muscle_group: ex.muscle_group,
+        default_sets: ex.default_sets,
+        default_reps: ex.default_reps,
+        sort_order: i,
+        notes: ex.notes,
+      })),
+    );
+
+  if (templateExercisesError) throw templateExercisesError;
 
   revalidateGymPaths();
   return template;
@@ -1090,6 +1096,53 @@ export async function updateWorkoutTemplate(
     exercises,
   });
 
+  const { data: existingTemplate, error: templateError } = await supabase
+    .from("workout_templates")
+    .select("id")
+    .eq("id", templateId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (templateError) throw templateError;
+  if (!existingTemplate) throw new Error("Template not found");
+
+  const { data: existingExercises, error: existingExercisesError } = await supabase
+    .from("workout_template_exercises")
+    .select("id")
+    .eq("template_id", templateId)
+    .eq("user_id", user.id);
+
+  if (existingExercisesError) throw existingExercisesError;
+
+  const { error: insertExercisesError } = await supabase
+    .from("workout_template_exercises")
+    .insert(
+      parsed.exercises.map((ex, i) => ({
+        template_id: templateId,
+        user_id: user.id,
+        exercise_library_id: ex.exercise_library_id ?? null,
+        exercise_name: ex.exercise_name,
+        muscle_group: ex.muscle_group,
+        default_sets: ex.default_sets,
+        default_reps: ex.default_reps,
+        sort_order: i,
+        notes: ex.notes,
+      })),
+    );
+
+  if (insertExercisesError) throw insertExercisesError;
+
+  const oldExerciseIds = existingExercises?.map((exercise) => exercise.id) ?? [];
+  if (oldExerciseIds.length > 0) {
+    const { error: deleteExercisesError } = await supabase
+      .from("workout_template_exercises")
+      .delete()
+      .in("id", oldExerciseIds)
+      .eq("user_id", user.id);
+
+    if (deleteExercisesError) throw deleteExercisesError;
+  }
+
   const { error } = await supabase
     .from("workout_templates")
     .update({
@@ -1102,25 +1155,6 @@ export async function updateWorkoutTemplate(
     .eq("user_id", user.id);
 
   if (error) throw error;
-
-  await supabase
-    .from("workout_template_exercises")
-    .delete()
-    .eq("template_id", templateId);
-
-  await supabase.from("workout_template_exercises").insert(
-    parsed.exercises.map((ex, i) => ({
-      template_id: templateId,
-      user_id: user.id,
-      exercise_library_id: ex.exercise_library_id ?? null,
-      exercise_name: ex.exercise_name,
-      muscle_group: ex.muscle_group,
-      default_sets: ex.default_sets,
-      default_reps: ex.default_reps,
-      sort_order: i,
-      notes: ex.notes,
-    })),
-  );
 
   revalidateGymPaths();
 }
