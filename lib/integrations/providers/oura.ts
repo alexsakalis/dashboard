@@ -4,6 +4,49 @@ import type { ProviderDefinition, SyncContext, SyncResult } from "@/lib/integrat
 import { isReauthError } from "@/lib/integrations/types";
 import type { Integration } from "@/types";
 
+const OURA_NULLABLE_METRIC_FIELDS = [
+  "sleep_score",
+  "sleep_duration_min",
+  "readiness_score",
+  "hrv_ms",
+  "resting_hr",
+  "steps",
+  "active_calories",
+  "activity_score",
+] as const;
+
+type OuraSnapshotPayload = {
+  user_id: string;
+  date: string;
+  source: "oura";
+  workout_count: number;
+  raw_payload: unknown;
+  synced_at: string;
+} & Partial<Record<(typeof OURA_NULLABLE_METRIC_FIELDS)[number], number>>;
+
+function buildOuraSnapshotPayload(
+  integration: Integration,
+  day: Awaited<ReturnType<typeof fetchOuraData>>[number],
+): OuraSnapshotPayload {
+  const payload: OuraSnapshotPayload = {
+    user_id: integration.user_id,
+    date: day.date,
+    source: "oura",
+    workout_count: day.workout_count,
+    raw_payload: day,
+    synced_at: new Date().toISOString(),
+  };
+
+  for (const field of OURA_NULLABLE_METRIC_FIELDS) {
+    const value = day[field];
+    if (value !== null) {
+      payload[field] = value;
+    }
+  }
+
+  return payload;
+}
+
 async function syncOuraData(
   integration: Integration,
   ctx: SyncContext,
@@ -15,22 +58,7 @@ async function syncOuraData(
 
     for (const day of dailyData) {
       const { error } = await ctx.supabase.from("health_daily_snapshots").upsert(
-        {
-          user_id: integration.user_id,
-          date: day.date,
-          source: "oura",
-          sleep_score: day.sleep_score,
-          sleep_duration_min: day.sleep_duration_min,
-          readiness_score: day.readiness_score,
-          hrv_ms: day.hrv_ms,
-          resting_hr: day.resting_hr,
-          steps: day.steps,
-          active_calories: day.active_calories,
-          activity_score: day.activity_score,
-          workout_count: day.workout_count,
-          raw_payload: day,
-          synced_at: new Date().toISOString(),
-        },
+        buildOuraSnapshotPayload(integration, day),
         { onConflict: "user_id,date,source" },
       );
 
