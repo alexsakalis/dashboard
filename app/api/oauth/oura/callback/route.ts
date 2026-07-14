@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
-import { getAppUrl } from "@/lib/env";
+import { getOAuthBaseUrl } from "@/lib/env";
 import { exchangeOuraCode } from "@/lib/integrations/oura/oauth";
 import { saveOuraIntegration } from "@/lib/actions/integrations";
 
 export async function GET(request: Request) {
-  const appUrl = getAppUrl();
+  const appUrl = getOAuthBaseUrl(request);
+  const oauthBaseUrl = appUrl;
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
   try {
     await requireUser();
 
-    const tokens = await exchangeOuraCode(code);
+    const tokens = await exchangeOuraCode(code, oauthBaseUrl);
     if (!tokens.refreshToken) {
       return NextResponse.redirect(
         `${appUrl}/settings/integrations?error=no_refresh_token`,

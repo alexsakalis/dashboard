@@ -16,7 +16,7 @@ const PUBLIC_PATHS = [
   "/api/health",
 ] as const;
 
-const PUBLIC_PREFIXES = ["/api/cron/"] as const;
+const PUBLIC_PREFIXES = ["/api/cron/", "/api/oauth/"] as const;
 
 export function isAuthPage(pathname: string): boolean {
   return AUTH_PAGES.some(

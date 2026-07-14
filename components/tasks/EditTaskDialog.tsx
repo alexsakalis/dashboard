@@ -1,72 +1,66 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   TaskFormFields,
-  createDefaultTaskFormValues,
+  taskToFormValues,
   type TaskFormValues,
 } from "@/components/tasks/TaskFormFields";
-import { createTask } from "@/lib/actions/tasks";
-import type { TaskCategory } from "@/types";
+import { updateTask } from "@/lib/actions/tasks";
+import type { Task, TaskCategory } from "@/types";
 
-export function CreateTaskDialog({
-  categories,
-}: {
+interface EditTaskDialogProps {
+  task: Task & { task_categories?: TaskCategory | null };
   categories: TaskCategory[];
-}) {
-  const [open, setOpen] = useState(false);
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function EditTaskDialog({
+  task,
+  categories,
+  open,
+  onOpenChange,
+}: EditTaskDialogProps) {
   const [isPending, startTransition] = useTransition();
   const [values, setValues] = useState<TaskFormValues>(() =>
-    createDefaultTaskFormValues(),
+    taskToFormValues(task),
   );
 
   function handleOpenChange(nextOpen: boolean) {
-    setOpen(nextOpen);
-    if (!nextOpen) {
-      setValues(createDefaultTaskFormValues());
+    if (nextOpen) {
+      setValues(taskToFormValues(task));
     }
+    onOpenChange(nextOpen);
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData();
-    formData.set("title", values.title.trim());
-    formData.set("description", values.description.trim());
-    formData.set("priority", values.priority);
-    formData.set("due_date", values.dueDate);
-    formData.set("category_id", values.categoryId);
-    formData.set("frequency", values.frequency);
-    formData.set("is_recurring", values.isRecurring ? "true" : "false");
-
     startTransition(async () => {
-      await createTask(formData);
-      setOpen(false);
-      setValues(createDefaultTaskFormValues());
+      await updateTask(task.id, {
+        title: values.title.trim(),
+        description: values.description.trim() || null,
+        priority: values.priority,
+        due_date: values.dueDate || null,
+        category_id: values.categoryId || null,
+      });
+      onOpenChange(false);
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          <Button size="sm" variant="outline">
-            <Plus className="mr-1 h-4 w-4" />
-            Add
-          </Button>
-        }
-      />
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>New Task</DialogTitle>
+          <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <TaskFormFields
@@ -75,10 +69,11 @@ export function CreateTaskDialog({
               setValues((current) => ({ ...current, ...updates }))
             }
             categories={categories}
-            idPrefix="create-task"
+            showRecurring={false}
+            idPrefix={`edit-${task.id}`}
           />
           <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "Creating..." : "Create Task"}
+            {isPending ? "Saving..." : "Save Changes"}
           </Button>
         </form>
       </DialogContent>

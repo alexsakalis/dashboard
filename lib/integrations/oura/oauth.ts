@@ -20,16 +20,17 @@ interface OuraTokenResponse {
   refresh_token?: string;
 }
 
-function getRedirectUri(): string {
-  return `${getAppUrl()}/api/oauth/oura/callback`;
+function getRedirectUri(baseUrl?: string): string {
+  const origin = baseUrl ?? getAppUrl();
+  return `${origin}/api/oauth/oura/callback`;
 }
 
-export function getOuraAuthUrl(state: string): string {
+export function getOuraAuthUrl(state: string, baseUrl?: string): string {
   const { clientId } = getOuraClientCredentials();
   const url = new URL(OURA_AUTHORIZE);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", clientId);
-  url.searchParams.set("redirect_uri", getRedirectUri());
+  url.searchParams.set("redirect_uri", getRedirectUri(baseUrl));
   url.searchParams.set("scope", OURA_SCOPES.join(" "));
   url.searchParams.set("state", state);
   return url.toString();
@@ -69,11 +70,11 @@ async function requestOuraToken(
   return res.json() as Promise<OuraTokenResponse>;
 }
 
-export async function exchangeOuraCode(code: string) {
+export async function exchangeOuraCode(code: string, baseUrl?: string) {
   const data = await requestOuraToken({
     grant_type: "authorization_code",
     code,
-    redirect_uri: getRedirectUri(),
+    redirect_uri: getRedirectUri(baseUrl),
   });
 
   return {

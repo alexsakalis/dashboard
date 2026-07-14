@@ -1,11 +1,45 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { getIntegrations } from "@/lib/actions/integrations";
 import { isOuraOAuthConfigured } from "@/lib/integrations/oura/oauth";
 import { isGoogleOAuthConfigured } from "@/lib/integrations/google/client";
-import { getIntegrationEnvStatus, getAppUrl } from "@/lib/env";
+import {
+  getIntegrationEnvStatus,
+  getOAuthRedirectBaseUrl,
+  tryGetConfiguredAppUrl,
+} from "@/lib/env";
 import { IntegrationsPanel } from "@/components/settings/IntegrationsPanel";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
+
+async function resolveOAuthContext(): Promise<{
+  oauthBaseUrl: string;
+  configuredAppUrl?: string;
+}> {
+  const headersList = await headers();
+  const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
+  const configuredAppUrl = tryGetConfiguredAppUrl();
+
+  if (!host) {
+    return {
+      oauthBaseUrl: getOAuthRedirectBaseUrl(),
+      configuredAppUrl,
+    };
+  }
+
+  const proto =
+    headersList.get("x-forwarded-proto") ??
+    (host.startsWith("localhost") ? "http" : "https");
+
+  const request = new Request(
+    `${proto}://${host.split(",")[0]?.trim()}/settings/integrations`,
+  );
+
+  return {
+    oauthBaseUrl: getOAuthRedirectBaseUrl(request),
+    configuredAppUrl,
+  };
+}
 
 async function IntegrationsContent({
   searchParams,
@@ -15,7 +49,7 @@ async function IntegrationsContent({
   const params = await searchParams;
   const integrations = await getIntegrations();
   const envStatus = getIntegrationEnvStatus();
-  const appUrl = getAppUrl();
+  const { oauthBaseUrl, configuredAppUrl } = await resolveOAuthContext();
 
   return (
     <IntegrationsPanel
@@ -25,7 +59,8 @@ async function IntegrationsContent({
       ouraOAuthConfigured={isOuraOAuthConfigured()}
       googleOAuthConfigured={isGoogleOAuthConfigured()}
       envStatus={envStatus}
-      appUrl={appUrl}
+      oauthBaseUrl={oauthBaseUrl}
+      configuredAppUrl={configuredAppUrl}
     />
   );
 }

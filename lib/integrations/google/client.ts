@@ -10,8 +10,14 @@ import type { Integration } from "@/types";
 
 export { hasGoogleOAuthEnv as isGoogleOAuthConfigured };
 
-function getRedirectUri(): string {
-  return `${getAppUrl()}/api/oauth/google/callback`;
+function getRedirectUri(baseUrl?: string): string {
+  const origin = baseUrl ?? getAppUrl();
+  return `${origin}/api/oauth/google/callback`;
+}
+
+function getOAuthClient(baseUrl?: string) {
+  const { clientId, clientSecret } = getGoogleClientCredentials();
+  return new google.auth.OAuth2(clientId, clientSecret, getRedirectUri(baseUrl));
 }
 
 function formatGoogleApiError(err: unknown): string {
@@ -26,13 +32,8 @@ function formatGoogleApiError(err: unknown): string {
   return message;
 }
 
-function getOAuthClient() {
-  const { clientId, clientSecret } = getGoogleClientCredentials();
-  return new google.auth.OAuth2(clientId, clientSecret, getRedirectUri());
-}
-
-export function getGoogleAuthUrl(state: string): string {
-  const oauth2 = getOAuthClient();
+export function getGoogleAuthUrl(state: string, baseUrl?: string): string {
+  const oauth2 = getOAuthClient(baseUrl);
   return oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
@@ -65,9 +66,9 @@ export function getGoogleOAuth2Client(integration: Integration) {
   return getAuthenticatedClient(integration);
 }
 
-export async function exchangeGoogleCode(code: string) {
+export async function exchangeGoogleCode(code: string, baseUrl?: string) {
   try {
-    const oauth2 = getOAuthClient();
+    const oauth2 = getOAuthClient(baseUrl);
     const { tokens } = await oauth2.getToken(code);
     return {
       accessToken: tokens.access_token ?? null,

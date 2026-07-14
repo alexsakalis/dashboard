@@ -1,0 +1,41 @@
+---
+description: Auto-commit and push changes to GitHub after every task
+alwaysApply: true
+---
+
+# Auto-commit after changes
+
+After completing any task that modifies files, commit and push to GitHub before finishing.
+
+## When to commit
+
+- Commit after every completed task that changes tracked files.
+- Do not batch unrelated work into one commit unless the user asked for a single commit.
+- Skip commit only when the user explicitly says not to commit, or when no files changed.
+
+## Commit message format
+
+Use this structure:
+
+```
+[YYYY-MM-DD HH:MM] Short summary of what changed
+
+- Bullet describing change area 1
+- Bullet describing change area 2
+```
+
+Use the user's local timezone for the timestamp. Run `date '+%Y-%m-%d %H:%M %Z'` if needed.
+
+## Workflow
+
+1. Run `git status` and `git diff` to understand what changed.
+2. Stage only relevant files (never `.env`, credentials, or secrets).
+3. Commit with the timestamped message (HEREDOC format).
+4. Push to the current branch: `git push`.
+5. If push fails because the branch has no upstream, run `git push -u origin HEAD`.
+
+## Git safety
+
+- Never force-push to main/master.
+- Never skip hooks unless the user explicitly requests it.
+- Never amend unless the user explicitly requests it and the commit was not pushed.

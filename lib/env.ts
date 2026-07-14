@@ -157,6 +157,13 @@ export function hasOuraOAuthEnv(): boolean {
   }
 }
 
+function formatAppUrl(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url.replace(/\/$/, "");
+  }
+  return `https://${url.replace(/\/$/, "")}`;
+}
+
 export function getAppUrl(): string {
   const url = resolveEnv("NEXT_PUBLIC_APP_URL", "VERCEL_URL");
   if (!url) {
@@ -165,11 +172,48 @@ export function getAppUrl(): string {
     );
   }
 
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url.replace(/\/$/, "");
+  return formatAppUrl(url);
+}
+
+export function tryGetConfiguredAppUrl(): string | undefined {
+  const url = resolveEnv("NEXT_PUBLIC_APP_URL", "VERCEL_URL");
+  if (!url) return undefined;
+  return formatAppUrl(url);
+}
+
+/** Origin from an incoming request (respects Vercel/proxy forwarded headers). */
+export function getRequestOrigin(request: Request): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost ?? request.headers.get("host");
+  if (host) {
+    const proto =
+      request.headers.get("x-forwarded-proto") ??
+      (host.startsWith("localhost") ? "http" : "https");
+    return formatAppUrl(`${proto}://${host.split(",")[0]?.trim()}`);
   }
 
-  return `https://${url.replace(/\/$/, "")}`;
+  return new URL(request.url).origin;
+}
+
+/**
+ * Base URL for OAuth redirect_uri values.
+ * Uses the URL the user is actually visiting so redirects match what's registered
+ * in Oura/Google (custom domain, vercel.app, or localhost) instead of a stale env value.
+ */
+export function getOAuthRedirectBaseUrl(request?: Request): string {
+  if (request) {
+    return getRequestOrigin(request);
+  }
+
+  const configured = tryGetConfiguredAppUrl();
+  if (configured) return configured;
+
+  return getAppUrl();
+}
+
+/** Base URL for OAuth redirect URIs on an incoming request. */
+export function getOAuthBaseUrl(request: Request): string {
+  return getOAuthRedirectBaseUrl(request);
 }
 
 export function getIntegrationEnvStatus() {

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CalendarCard } from "@/components/dashboard/CalendarCard";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
+import { DailyBriefingCard } from "@/components/dashboard/DailyBriefingCard";
 import { DailyScoreCard } from "@/components/dashboard/DailyScoreCard";
 import { FinanceCard } from "@/components/dashboard/FinanceCard";
 import { GymSummaryCard } from "@/components/dashboard/GymSummaryCard";
@@ -23,6 +24,7 @@ async function DashboardContent() {
   return (
     <>
       <DailyScoreCard summary={summary} />
+      <DailyBriefingCard summary={summary} />
       <TasksCard summary={summary} />
       <HabitsCard summary={summary} />
       <HealthCard summary={summary} />
