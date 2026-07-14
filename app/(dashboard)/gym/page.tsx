@@ -4,8 +4,10 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
 import { getGymDashboard, getLastWorkoutReference } from "@/lib/actions/gym";
+import { getGymHealthInsight } from "@/lib/gym/health-insight";
 import { StartWorkoutSheet } from "@/components/gym/StartWorkoutSheet";
 import { QuickRepeatButtons } from "@/components/gym/QuickRepeatButtons";
+import { GymHealthInsightCard } from "@/components/gym/GymHealthInsightCard";
 import {
   GymDashboardStats,
   LastWorkoutCard,
@@ -16,6 +18,7 @@ import { Card } from "@/components/ui/card";
 
 async function GymDashboardContent() {
   const summary = await getGymDashboard();
+  const insight = await getGymHealthInsight(summary);
   const lastRef = await getLastWorkoutReference(summary.suggestedSplit);
 
   const navLinks = [
@@ -28,6 +31,8 @@ async function GymDashboardContent() {
 
   return (
     <div className="space-y-5">
+      <GymHealthInsightCard insight={insight} />
+
       <GymDashboardStats summary={summary} />
 
       <div className="space-y-2">
@@ -40,6 +45,9 @@ async function GymDashboardContent() {
         </div>
         <p className="text-xs text-muted-foreground">
           Suggested next: {SPLIT_LABELS[summary.suggestedSplit]}
+          {insight.intensity === "heavy" && " · push intensity"}
+          {insight.intensity === "light" && " · keep it light"}
+          {insight.intensity === "rest" && " · recovery focus"}
         </p>
         <QuickRepeatButtons />
       </div>
@@ -78,7 +86,7 @@ export default function GymPage() {
     <>
       <PageHeader
         title="Gym"
-        subtitle="Track workouts & progress"
+        subtitle="Training with Oura recovery context"
       />
       <main className="px-4 py-4">
         <Suspense fallback={<CardSkeleton />}>

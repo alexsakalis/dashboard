@@ -3,12 +3,49 @@ import { format } from "date-fns";
 import { ArrowRight, Dumbbell, Flame } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
+import { GymHealthInsightCard } from "@/components/gym/GymHealthInsightCard";
 import { cn } from "@/lib/utils";
+import { buildGymHealthInsight } from "@/lib/gym/health-crossover";
+import { suggestNextSplit } from "@/lib/gym/suggestions";
 import { formatSplit } from "@/lib/gym/format";
-import type { DashboardSummary, WorkoutSplit } from "@/types";
+import type { DashboardSummary, HealthDailySnapshot, WorkoutSplit } from "@/types";
+import type { Workout } from "@/types/gym";
 
-export function GymSummaryCard({ summary }: { summary: DashboardSummary }) {
+export function GymSummaryCard({
+  summary,
+  snapshots = [],
+}: {
+  summary: DashboardSummary;
+  snapshots?: HealthDailySnapshot[];
+}) {
   const lastWorkout = summary.card_data.gym_last_workout;
+  const today = format(new Date(), "yyyy-MM-dd");
+  const todaySnapshot = snapshots.find((row) => row.date === today);
+  const suggestedSplit = lastWorkout?.split
+    ? suggestNextSplit([
+        {
+          split: lastWorkout.split,
+          completed_at: lastWorkout.started_at,
+        } as Workout,
+      ])
+    : "push";
+
+  const insight = buildGymHealthInsight(
+    snapshots,
+    {
+      suggestedSplit,
+      weeklyWorkouts: summary.weekly_workouts,
+      lastWorkoutDate: lastWorkout
+        ? format(new Date(lastWorkout.started_at), "yyyy-MM-dd")
+        : null,
+    },
+    todaySnapshot?.readiness_score ?? summary.readiness_score,
+    todaySnapshot?.hrv_ms != null
+      ? Number(todaySnapshot.hrv_ms)
+      : summary.latest_hrv != null
+        ? Number(summary.latest_hrv)
+        : null,
+  );
 
   return (
     <Card>
@@ -21,7 +58,10 @@ export function GymSummaryCard({ summary }: { summary: DashboardSummary }) {
           Open <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {insight.level !== "unavailable" && (
+          <GymHealthInsightCard insight={insight} compact />
+        )}
         {lastWorkout ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">

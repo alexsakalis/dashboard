@@ -31,7 +31,7 @@ async function DashboardContent() {
       <TasksCard summary={summary} />
       <HabitsCard summary={summary} />
       <HealthCard summary={summary} snapshots={healthSnapshots} />
-      <GymSummaryCard summary={summary} />
+      <GymSummaryCard summary={summary} snapshots={healthSnapshots} />
       <FinanceCard summary={summary} />
       <CalendarCard summary={summary} />
       <SyncStatusCard summary={summary} />
