@@ -4,7 +4,18 @@ import { ArrowRight, Calendar } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DashboardSummary } from "@/types";
 
-export function CalendarCard({ summary }: { summary: DashboardSummary }) {
+export function CalendarCard({
+  summary,
+  nextEvent,
+}: {
+  summary: DashboardSummary;
+  nextEvent?: {
+    title: string;
+    start_time: string;
+    all_day: boolean;
+    location: string | null;
+  } | null;
+}) {
   const events = summary.card_data.calendar_preview;
 
   return (
@@ -20,9 +31,20 @@ export function CalendarCard({ summary }: { summary: DashboardSummary }) {
       </CardHeader>
       <CardContent>
         {events.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No events today. Connect Google Calendar in Settings.
-          </p>
+          <div className="py-2 text-center text-sm text-muted-foreground">
+            {nextEvent ? (
+              <div className="space-y-1 text-left">
+                <p>No events today.</p>
+                <p className="text-xs">
+                  Next: <span className="font-medium text-foreground">{nextEvent.title}</span>
+                  {" · "}
+                  {format(new Date(nextEvent.start_time), "EEE h:mm a")}
+                </p>
+              </div>
+            ) : (
+              <p className="py-2">No events today. Connect Google Calendar in Settings.</p>
+            )}
+          </div>
         ) : (
           <div className="space-y-3">
             {events.map((event) => (
@@ -39,6 +61,11 @@ export function CalendarCard({ summary }: { summary: DashboardSummary }) {
                 </div>
               </div>
             ))}
+            {summary.calendar_events_today >= 3 && (
+              <p className="text-xs text-muted-foreground">
+                Busy day — {summary.calendar_events_today} events scheduled
+              </p>
+            )}
           </div>
         )}
       </CardContent>

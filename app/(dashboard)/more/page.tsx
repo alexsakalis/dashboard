@@ -5,6 +5,7 @@ import {
   Calendar,
   ChevronRight,
   DollarSign,
+  ListTree,
   Settings,
   Target,
 } from "lucide-react";
@@ -13,6 +14,12 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const links = [
+  {
+    href: "/activity",
+    label: "Activity",
+    description: "Recent tasks, habits & workouts",
+    icon: ListTree,
+  },
   {
     href: "/journal",
     label: "Journal",

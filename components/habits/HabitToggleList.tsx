@@ -1,16 +1,26 @@
 "use client";
 
-import { useTransition } from "react";
-import { Check, Flame } from "lucide-react";
+import { useState, useTransition } from "react";
+import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toggleHabit } from "@/lib/actions/habits";
+import { toggleHabit, deleteHabit } from "@/lib/actions/habits";
+import { EditHabitDialog } from "@/components/habits/EditHabitDialog";
+import { HabitStreakDots } from "@/components/habits/HabitStreakDots";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-interface HabitWithStatus {
+export interface HabitWithStatus {
   id: string;
   name: string;
   icon: string | null;
   completed_today: boolean;
   streak: number;
+  recentCompletions?: string[];
 }
 
 export function HabitToggleList({ habits }: { habits: HabitWithStatus[] }) {
@@ -25,14 +35,15 @@ export function HabitToggleList({ habits }: { habits: HabitWithStatus[] }) {
   return (
     <div className="space-y-2">
       {habits.map((habit) => (
-        <HabitToggle key={habit.id} habit={habit} />
+        <HabitRow key={habit.id} habit={habit} />
       ))}
     </div>
   );
 }
 
-function HabitToggle({ habit }: { habit: HabitWithStatus }) {
+function HabitRow({ habit }: { habit: HabitWithStatus }) {
   const [isPending, startTransition] = useTransition();
+  const [editOpen, setEditOpen] = useState(false);
 
   function handleToggle() {
     startTransition(async () => {
@@ -40,35 +51,66 @@ function HabitToggle({ habit }: { habit: HabitWithStatus }) {
     });
   }
 
+  function handleDelete() {
+    startTransition(async () => {
+      await deleteHabit(habit.id);
+    });
+  }
+
   return (
-    <button
-      type="button"
-      onClick={handleToggle}
-      disabled={isPending}
-      className={cn(
-        "flex w-full items-center gap-3 rounded-lg border border-border/50 p-3 text-left transition-colors hover:bg-muted/50",
-        habit.completed_today && "border-primary/30 bg-primary/5",
-        isPending && "opacity-50",
-      )}
-    >
-      <span className="text-lg">{habit.icon ?? "✓"}</span>
-      <span className="flex-1 text-sm font-medium">{habit.name}</span>
-      {habit.streak > 0 && (
-        <span className="flex items-center gap-1 text-xs text-orange-500">
-          <Flame className="h-3.5 w-3.5" />
-          {habit.streak}
-        </span>
-      )}
-      <span
+    <>
+      <div
         className={cn(
-          "flex h-6 w-6 items-center justify-center rounded-full border-2",
-          habit.completed_today
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-muted-foreground/30",
+          "flex items-center gap-2 rounded-lg border border-border/50 p-3 transition-colors",
+          habit.completed_today && "border-primary/30 bg-primary/5",
+          isPending && "opacity-50",
         )}
       >
-        {habit.completed_today && <Check className="h-3.5 w-3.5" />}
-      </span>
-    </button>
+        <button
+          type="button"
+          onClick={handleToggle}
+          disabled={isPending}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span className="text-lg">{habit.icon ?? "✓"}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{habit.name}</p>
+            <HabitStreakDots
+              streak={habit.streak}
+              recentCompletions={habit.recentCompletions ?? []}
+            />
+          </div>
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground"
+                aria-label={`Actions for ${habit.name}`}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+              Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <EditHabitDialog
+        habit={habit}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
+    </>
   );
 }

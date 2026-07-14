@@ -11,7 +11,7 @@ import { HealthCard } from "@/components/dashboard/HealthCard";
 import { SyncStatusCard } from "@/components/dashboard/SyncStatusCard";
 import { TasksCard } from "@/components/dashboard/TasksCard";
 import { requireUser } from "@/lib/auth";
-import { getDashboardSummary, getHealthSnapshots, refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
+import { getDashboardSummary, getHealthSnapshots, getUpcomingCalendarEvents, refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { seedDefaultHabits } from "@/lib/actions/habits";
 import { processRecurringTasksForCurrentUser } from "@/lib/actions/tasks";
 
@@ -22,7 +22,10 @@ async function DashboardContent() {
     await refreshDashboardSummaryForCurrentUser();
   }
   const summary = await getDashboardSummary();
-  const healthSnapshots = await getHealthSnapshots(7);
+  const [healthSnapshots, nextEvent] = await Promise.all([
+    getHealthSnapshots(7),
+    getUpcomingCalendarEvents(1).then((events) => events[0] ?? null),
+  ]);
 
   return (
     <>
@@ -33,7 +36,7 @@ async function DashboardContent() {
       <HealthCard summary={summary} snapshots={healthSnapshots} />
       <GymSummaryCard summary={summary} snapshots={healthSnapshots} />
       <FinanceCard summary={summary} />
-      <CalendarCard summary={summary} />
+      <CalendarCard summary={summary} nextEvent={nextEvent} />
       <SyncStatusCard summary={summary} />
     </>
   );
