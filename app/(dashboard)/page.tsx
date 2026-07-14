@@ -13,10 +13,12 @@ import { TasksCard } from "@/components/dashboard/TasksCard";
 import { requireUser } from "@/lib/auth";
 import { getDashboardSummary, refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { seedDefaultHabits } from "@/lib/actions/habits";
+import { processRecurringTasksForCurrentUser } from "@/lib/actions/tasks";
 
 async function DashboardContent() {
   const seeded = await seedDefaultHabits();
-  if (seeded) {
+  const recurringCreated = await processRecurringTasksForCurrentUser();
+  if (seeded || recurringCreated > 0) {
     await refreshDashboardSummaryForCurrentUser();
   }
   const summary = await getDashboardSummary();

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { getTaskCategories, getTasks } from "@/lib/actions/tasks";
+import { getTaskCategories, getTasks, processRecurringTasksForCurrentUser } from "@/lib/actions/tasks";
 import { TaskItem } from "@/components/tasks/TaskItem";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
 import { CreateCategoryDialog } from "@/components/tasks/CreateCategoryDialog";
@@ -35,6 +35,7 @@ async function TaskList({
 }
 
 async function TasksPageContent() {
+  await processRecurringTasksForCurrentUser();
   const categories = await getTaskCategories();
 
   return (

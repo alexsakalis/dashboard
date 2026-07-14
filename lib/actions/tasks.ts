@@ -6,6 +6,10 @@ import { requireUser } from "@/lib/auth";
 import { refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { createClient } from "@/lib/supabase/server";
 import { awardTaskPoints } from "@/lib/scoring/actions";
+import {
+  advanceRecurrenceAfterComplete,
+  processRecurrenceRulesForUser,
+} from "@/lib/tasks/recurrence";
 import type { TaskPriority, TaskStatus } from "@/types";
 
 export async function getTasks(filter?: "today" | "upcoming" | "recurring" | "all") {
@@ -66,7 +70,7 @@ export async function createTask(formData: FormData) {
       .insert({
         user_id: user.id,
         frequency,
-        template_task: { title, priority, category_id: categoryId },
+        template_task: { title, priority, category_id: categoryId, description },
         next_occurrence: dueDate ?? today(),
       })
       .select()
@@ -148,6 +152,8 @@ export async function completeTask(taskId: string) {
     !!task.recurrence_rule_id,
   );
 
+  await advanceRecurrenceAfterComplete(supabase, user.id, task);
+
   revalidatePath("/");
   revalidatePath("/tasks");
   await refreshDashboardSummaryForCurrentUser();
@@ -185,4 +191,10 @@ export async function createCategory(name: string, color: string) {
 
 function today() {
   return format(new Date(), "yyyy-MM-dd");
+}
+
+export async function processRecurringTasksForCurrentUser(): Promise<number> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  return processRecurrenceRulesForUser(supabase, user.id);
 }

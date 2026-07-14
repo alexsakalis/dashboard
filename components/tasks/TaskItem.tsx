@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, MoreHorizontal } from "lucide-react";
+import { Check, MoreHorizontal, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { completeTask } from "@/lib/actions/tasks";
 import { TaskPriorityDot } from "@/components/dashboard/TasksCard";
@@ -68,6 +68,12 @@ export function TaskItem({ task, compact, categories = [] }: TaskItemProps) {
             >
               {task.title}
             </p>
+            {task.recurrence_rule_id && (
+              <Repeat
+                className="h-3 w-3 shrink-0 text-muted-foreground"
+                aria-label="Recurring task"
+              />
+            )}
           </div>
           {!compact && (task.task_categories || task.description) && (
             <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">

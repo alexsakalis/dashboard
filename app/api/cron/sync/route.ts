@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { runAllIntegrations } from "@/lib/integrations/runner";
+import { createAdminClient } from "@/lib/server/supabase-admin";
+import { processAllRecurrenceRules } from "@/lib/tasks/recurrence";
 
 function verifyCronAuth(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
@@ -13,7 +15,9 @@ export async function GET(request: Request) {
 
   try {
     const result = await runAllIntegrations({ trigger: "cron" });
-    return NextResponse.json(result);
+    const supabase = await createAdminClient();
+    const recurring = await processAllRecurrenceRules(supabase);
+    return NextResponse.json({ ...result, recurring });
   } catch (error) {
     console.error("Integration cron error:", error);
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });

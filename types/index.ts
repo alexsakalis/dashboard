@@ -48,6 +48,7 @@ export interface RecurrenceRule {
     title: string;
     priority: TaskPriority;
     category_id?: string | null;
+    description?: string | null;
   };
 }
 
