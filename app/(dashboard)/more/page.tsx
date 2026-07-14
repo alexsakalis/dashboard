@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Activity,
+  BookOpen,
   Calendar,
   ChevronRight,
   DollarSign,
@@ -12,6 +13,12 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const links = [
+  {
+    href: "/journal",
+    label: "Journal",
+    description: "Daily notes & weekly review",
+    icon: BookOpen,
+  },
   {
     href: "/health",
     label: "Health",

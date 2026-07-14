@@ -1,6 +1,6 @@
 "use server";
 
-import { startOfDay, endOfDay } from "date-fns";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { requireUser } from "@/lib/auth";
 import {
   createDefaultDashboardSummary,
@@ -81,16 +81,17 @@ export async function getUpcomingCalendarEvents(limit = 10) {
   return data ?? [];
 }
 
-export async function getHealthSnapshots(days = 7) {
+export async function getHealthSnapshots(days = 30) {
   const user = await requireUser();
   const supabase = await createClient();
+  const since = format(subDays(new Date(), days - 1), "yyyy-MM-dd");
 
   const { data, error } = await supabase
     .from("health_daily_snapshots")
     .select("*")
     .eq("user_id", user.id)
-    .order("date", { ascending: false })
-    .limit(days * 2);
+    .gte("date", since)
+    .order("date", { ascending: true });
 
   if (error) throw error;
   return data ?? [];

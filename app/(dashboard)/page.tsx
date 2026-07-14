@@ -11,7 +11,7 @@ import { HealthCard } from "@/components/dashboard/HealthCard";
 import { SyncStatusCard } from "@/components/dashboard/SyncStatusCard";
 import { TasksCard } from "@/components/dashboard/TasksCard";
 import { requireUser } from "@/lib/auth";
-import { getDashboardSummary, refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
+import { getDashboardSummary, getHealthSnapshots, refreshDashboardSummaryForCurrentUser } from "@/lib/actions/dashboard";
 import { seedDefaultHabits } from "@/lib/actions/habits";
 import { processRecurringTasksForCurrentUser } from "@/lib/actions/tasks";
 
@@ -22,6 +22,7 @@ async function DashboardContent() {
     await refreshDashboardSummaryForCurrentUser();
   }
   const summary = await getDashboardSummary();
+  const healthSnapshots = await getHealthSnapshots(7);
 
   return (
     <>
@@ -29,7 +30,7 @@ async function DashboardContent() {
       <DailyBriefingCard summary={summary} />
       <TasksCard summary={summary} />
       <HabitsCard summary={summary} />
-      <HealthCard summary={summary} />
+      <HealthCard summary={summary} snapshots={healthSnapshots} />
       <GymSummaryCard summary={summary} />
       <FinanceCard summary={summary} />
       <CalendarCard summary={summary} />

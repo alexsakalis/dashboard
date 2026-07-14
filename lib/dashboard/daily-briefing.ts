@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { calculateDailyProgress } from "@/lib/scoring/daily-score";
+import { buildRecoveryHint } from "@/lib/health/trends";
 import type { DashboardSummary } from "@/types";
 
 export interface DailyBriefing {
@@ -24,29 +25,7 @@ function getGreeting(): string {
 }
 
 function getRecoveryInsight(summary: DashboardSummary): string {
-  const readiness = summary.readiness_score;
-  const sleep = summary.sleep_score;
-
-  if (readiness != null) {
-    if (readiness >= 85) {
-      return "Well recovered — a strong day for deep work and training.";
-    }
-    if (readiness >= 70) {
-      return "Decent recovery. Stay focused on your top priorities.";
-    }
-    if (readiness >= 50) {
-      return "Moderate recovery — keep the plan simple today.";
-    }
-    return "Low readiness. Favor rest, light movement, and essentials.";
-  }
-
-  if (sleep != null) {
-    if (sleep >= 80) return "Solid sleep last night. You're set up well for today.";
-    if (sleep >= 65) return "Sleep was okay — pace yourself through the day.";
-    return "Sleep was below average. Go easy and protect energy.";
-  }
-
-  return "Here's your snapshot for today.";
+  return buildRecoveryHint(summary.readiness_score, summary.sleep_score).message;
 }
 
 const PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 } as const;
