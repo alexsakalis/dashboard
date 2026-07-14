@@ -13,10 +13,17 @@ import {
 } from "@/components/ui/dialog";
 import { deleteWorkout } from "@/lib/actions/gym";
 
-export function DeleteWorkoutDialog({ workoutId }: { workoutId: string }) {
+export function DeleteWorkoutDialog({
+  workoutId,
+  mode = "completed",
+}: {
+  workoutId: string;
+  mode?: "active" | "completed";
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const isActive = mode === "active";
 
   function handleDelete() {
     startTransition(async () => {
@@ -31,17 +38,33 @@ export function DeleteWorkoutDialog({ workoutId }: { workoutId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
-            <Trash2 className="h-4 w-4" />
+          <Button
+            variant={isActive ? "outline" : "ghost"}
+            size={isActive ? "sm" : "icon"}
+            className={
+              isActive
+                ? "text-destructive hover:text-destructive"
+                : "text-muted-foreground hover:text-destructive"
+            }
+          >
+            {isActive ? (
+              "Discard"
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
           </Button>
         }
       />
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Delete workout?</DialogTitle>
+          <DialogTitle>
+            {isActive ? "Discard workout?" : "Delete workout?"}
+          </DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          This permanently removes the workout and all logged sets.
+          {isActive
+            ? "This will permanently discard the in-progress workout and all logged sets."
+            : "This permanently removes the workout and all logged sets."}
         </p>
         <div className="flex gap-2 pt-2">
           <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>
@@ -53,7 +76,7 @@ export function DeleteWorkoutDialog({ workoutId }: { workoutId: string }) {
             onClick={handleDelete}
             disabled={isPending}
           >
-            {isPending ? "Deleting..." : "Delete"}
+            {isPending ? "Removing..." : isActive ? "Discard" : "Delete"}
           </Button>
         </div>
       </DialogContent>

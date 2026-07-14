@@ -13,32 +13,62 @@ import {
 import { SetRow, SetRowHeader } from "@/components/gym/SetRow";
 import { PreviousPerformanceHint } from "@/components/gym/PreviousPerformanceHint";
 import { MuscleGroupBadge } from "@/components/gym/MuscleGroupBadge";
+import { ProgressionBadge } from "@/components/gym/ProgressionBadge";
+import { ExerciseCueSheet } from "@/components/gym/ExerciseCueSheet";
+import { suggestProgression } from "@/lib/gym/suggestions";
 import type { WorkoutExercise, WorkoutSet } from "@/types/gym";
 
 interface ExerciseCardProps {
   exercise: WorkoutExercise;
   workoutId: string;
   isActive: boolean;
+  sessionActive?: boolean;
   isFirst: boolean;
   isLast: boolean;
   allExerciseIds: string[];
   previousSets?: { reps: number | null; weight: number | null; isWarmup: boolean }[];
+  weightUnit?: string;
 }
 
 export function ExerciseCard({
   exercise,
   workoutId,
   isActive,
+  sessionActive = false,
   isFirst,
   isLast,
   allExerciseIds,
   previousSets,
+  weightUnit = "lbs",
 }: ExerciseCardProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const sets = [...(exercise.workout_sets ?? [])].sort(
     (a, b) => a.set_number - b.set_number,
   );
+
+  const lastSets: WorkoutSet[] = (previousSets ?? []).map((s, i) => ({
+    id: `prev-${i}`,
+    user_id: exercise.user_id,
+    workout_id: exercise.workout_id,
+    workout_exercise_id: exercise.id,
+    exercise_name: exercise.exercise_name,
+    set_number: i + 1,
+    reps: s.reps,
+    weight: s.weight,
+    unit: "lbs",
+    rpe: null,
+    is_warmup: s.isWarmup,
+    rest_seconds: null,
+    sort_order: i + 1,
+    notes: null,
+    created_at: exercise.created_at,
+  }));
+
+  const progression =
+    isActive && lastSets.length > 0
+      ? suggestProgression(exercise.exercise_name, lastSets, sets)
+      : null;
 
   function addSet() {
     const nextNumber = sets.length + 1;
@@ -86,13 +116,23 @@ export function ExerciseCard({
           <CardTitle className="text-base">{exercise.exercise_name}</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <MuscleGroupBadge group={exercise.muscle_group} />
-            {previousSets && previousSets.length > 0 && (
+            {progression && (
+              <>
+                <ProgressionBadge status={progression.status} />
+                <span className="text-xs text-muted-foreground">{progression.message.replace(/\blbs\b/, weightUnit)}</span>
+              </>
+            )}
+            {!progression && previousSets && previousSets.length > 0 && (
               <PreviousPerformanceHint sets={previousSets} />
             )}
           </div>
         </div>
         {isActive && (
           <div className="flex shrink-0 items-center gap-0.5">
+            <ExerciseCueSheet
+              exerciseName={exercise.exercise_name}
+              exerciseLibraryId={exercise.exercise_library_id}
+            />
             {!isFirst && (
               <Button
                 type="button"
@@ -137,7 +177,10 @@ export function ExerciseCard({
             key={set.id}
             set={set}
             workoutId={workoutId}
+            exerciseName={exercise.exercise_name}
             isActive={isActive}
+            sessionActive={sessionActive}
+            weightUnit={weightUnit}
           />
         ))}
         {sets.length === 0 && (

@@ -84,7 +84,7 @@ export function LastWorkoutCard({
             {last.durationLabel && ` · ${last.durationLabel}`}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {last.workingSets} working sets · {Math.round(last.totalVolume).toLocaleString()} lb volume
+            {last.workingSets} working sets · {Math.round(last.totalVolume).toLocaleString()} {summary.weightUnit} volume
           </p>
         </CardContent>
       </Card>

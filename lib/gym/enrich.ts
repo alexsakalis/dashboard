@@ -139,6 +139,8 @@ export function buildGymDashboard(input: {
   topExercises: string[];
   exerciseWorkouts: Map<string, Workout[]>;
   allPRs: ExercisePersonalRecord[];
+  preferredSplits?: WorkoutSplit[];
+  weightUnit?: string;
 }): GymDashboardSummary {
   const completed = input.workouts.filter((w) => w.completed_at);
   const lastWorkout = completed[0] ? enrichWorkout(completed[0]) : null;
@@ -156,12 +158,13 @@ export function buildGymDashboard(input: {
 
   return {
     lastWorkout,
-    suggestedSplit: suggestNextSplit(completed),
+    suggestedSplit: suggestNextSplit(completed, input.preferredSplits),
     weeklyWorkoutCount: weeklyWorkoutCount(completed),
     trainingStreak: trainingStreak(completed),
     latestBodyWeight: input.bodyWeight,
     recentPRs: input.recentPRs.slice(0, 5),
     topProgressing,
+    weightUnit: input.weightUnit ?? "lbs",
   };
 }
 

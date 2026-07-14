@@ -14,6 +14,7 @@ import {
 import { detectPRsFromSets } from "@/lib/gym/progress";
 import {
   DEFAULT_TEMPLATE_EXERCISES,
+  DEFAULT_REST_SECONDS,
   SPLIT_MUSCLE_GROUPS,
 } from "@/lib/gym/constants";
 import { matchSplitFromName } from "@/lib/gym/suggestions";
@@ -72,6 +73,8 @@ function revalidateGymPaths(workoutId?: string) {
   revalidatePath("/gym/body-weight");
   revalidatePath("/gym/templates");
   revalidatePath("/gym/exercises");
+  revalidatePath("/gym/calendar");
+  revalidatePath("/gym/plates");
 }
 
 function sortWorkoutData<T extends Workout>(workout: T): T {
@@ -122,6 +125,42 @@ export async function getWorkouts(filters: WorkoutFilters = {}) {
   }
   if (error) throw error;
   return (data ?? []).map((w) => sortWorkoutData(w as unknown as Workout));
+}
+
+export async function getWorkoutsForMonth(month: Date): Promise<Workout[]> {
+  const { startOfMonth, endOfMonth, startOfWeek, endOfWeek } = await import("date-fns");
+  const user = await requireUser();
+  const supabase = await createClient();
+  const select = await resolveWorkoutSelect(supabase);
+
+  const monthStart = startOfMonth(month);
+  const monthEnd = endOfMonth(month);
+  const rangeStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const rangeEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(select)
+    .eq("user_id", user.id)
+    .gte("started_at", rangeStart.toISOString())
+    .lte("started_at", rangeEnd.toISOString())
+    .order("started_at", { ascending: true });
+
+  if (error) {
+    if (isMissingSchemaError(error)) return [];
+    throw error;
+  }
+
+  return (data ?? []).map((w) => sortWorkoutData(w as unknown as Workout));
+}
+
+export async function getWorkoutCalendar(monthKey?: string) {
+  const { parseMonthKey, buildWorkoutCalendarMonth } = await import(
+    "@/lib/gym/calendar"
+  );
+  const month = parseMonthKey(monthKey);
+  const workouts = await getWorkoutsForMonth(month);
+  return buildWorkoutCalendarMonth(workouts, month);
 }
 
 export async function getWorkout(id: string) {
@@ -396,7 +435,7 @@ export async function getGymDashboard() {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const [workouts, bodyWeight, recentPRs, allPRs] = await Promise.all([
+  const [workouts, bodyWeight, recentPRs, allPRs, prefs] = await Promise.all([
     getWorkouts({ limit: 50, completedOnly: true }),
     getLatestBodyWeight(),
     getRecentPRs(5),
@@ -404,6 +443,7 @@ export async function getGymDashboard() {
       .from("exercise_personal_records")
       .select("*")
       .eq("user_id", user.id),
+    getGymPreferences(),
   ]);
 
   if (allPRs.error && !isMissingSchemaError(allPRs.error)) {
@@ -432,6 +472,8 @@ export async function getGymDashboard() {
     topExercises,
     exerciseWorkouts,
     allPRs: (allPRs.data ?? []) as ExercisePersonalRecord[],
+    preferredSplits: (prefs?.preferred_splits ?? ["push", "pull", "legs"]) as WorkoutSplit[],
+    weightUnit: prefs?.default_weight_unit ?? "lbs",
   });
 }
 
@@ -449,7 +491,79 @@ export async function getGymPreferences(): Promise<GymPreferences | null> {
     if (isMissingSchemaError(error)) return null;
     throw error;
   }
-  return data as GymPreferences | null;
+  return data
+    ? ({
+        ...data,
+        default_rest_seconds:
+          (data as GymPreferences).default_rest_seconds ?? DEFAULT_REST_SECONDS,
+      } as GymPreferences)
+    : null;
+}
+
+export async function getAllPersonalRecords(): Promise<ExercisePersonalRecord[]> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("exercise_personal_records")
+    .select("*")
+    .eq("user_id", user.id);
+
+  if (error) {
+    if (isMissingSchemaError(error)) return [];
+    throw error;
+  }
+  return (data ?? []) as ExercisePersonalRecord[];
+}
+
+export async function updateGymPreferences(formData: FormData) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const defaultWeightUnit = (formData.get("default_weight_unit") as string) || "lbs";
+  const defaultRestSeconds = Number.parseInt(
+    String(formData.get("default_rest_seconds") ?? "90"),
+    10,
+  );
+  const preferredSplits = formData.getAll("preferred_splits") as string[];
+
+  const { error } = await supabase.from("gym_preferences").upsert(
+    {
+      user_id: user.id,
+      default_weight_unit: defaultWeightUnit,
+      default_rest_seconds: Number.isFinite(defaultRestSeconds)
+        ? defaultRestSeconds
+        : 90,
+      preferred_splits:
+        preferredSplits.length > 0 ? preferredSplits : ["push", "pull", "legs"],
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) throw error;
+  revalidateGymPaths();
+  revalidatePath("/gym/settings");
+}
+
+export async function getGymAnalytics() {
+  const { getHealthSnapshots } = await import("@/lib/actions/dashboard");
+  const [workouts, snapshots] = await Promise.all([
+    getWorkouts({ limit: 100, completedOnly: true }),
+    getHealthSnapshots(30),
+  ]);
+  const { buildGymAnalytics } = await import("@/lib/gym/analytics");
+  const { buildWorkoutRecoveryInsights } = await import("@/lib/gym/recovery-insight");
+  return {
+    ...buildGymAnalytics(workouts),
+    recoveryInsights: buildWorkoutRecoveryInsights(workouts, snapshots),
+  };
+}
+
+export async function exportWorkoutsCsv(): Promise<string> {
+  const workouts = await getWorkouts({ limit: 500, completedOnly: true });
+  const { workoutsToCsv } = await import("@/lib/gym/export");
+  return workoutsToCsv(workouts);
 }
 
 async function ensureDefaultTemplates(userId: string) {
@@ -554,7 +668,7 @@ export async function createWorkout(formData: FormData) {
   if (error) throw error;
 
   if (parsed.duplicate_from_workout_id) {
-    await copyWorkoutExercises(user.id, parsed.duplicate_from_workout_id, workout.id, false);
+    await copyWorkoutExercises(user.id, parsed.duplicate_from_workout_id, workout.id, true);
   } else if (parsed.template_id) {
     await copyTemplateExercises(user.id, parsed.template_id, workout.id);
   }
@@ -575,14 +689,44 @@ async function copyTemplateExercises(
   const exercises = template.workout_template_exercises ?? template.exercises ?? [];
   for (let i = 0; i < exercises.length; i++) {
     const ex = exercises[i];
-    await supabase.from("workout_exercises").insert({
-      user_id: userId,
-      workout_id: workoutId,
-      exercise_name: ex.exercise_name ?? (ex as { name?: string }).name,
-      muscle_group: ex.muscle_group,
-      sort_order: ex.sort_order ?? i,
-      notes: ex.notes,
-    });
+    const exerciseName = ex.exercise_name ?? (ex as { name?: string }).name ?? "Exercise";
+
+    const { data: newEx, error: exError } = await supabase
+      .from("workout_exercises")
+      .insert({
+        user_id: userId,
+        workout_id: workoutId,
+        exercise_library_id: ex.exercise_library_id ?? null,
+        exercise_name: exerciseName,
+        muscle_group: ex.muscle_group,
+        sort_order: ex.sort_order ?? i,
+        notes: ex.notes,
+      })
+      .select()
+      .single();
+
+    if (exError || !newEx) continue;
+
+    const setCount = Math.max(1, ex.default_sets ?? 3);
+    const lastPerf = await getLastExercisePerformance(exerciseName);
+    const lastSets = lastPerf ?? [];
+
+    for (let setNum = 1; setNum <= setCount; setNum++) {
+      const lastSet = lastSets.find((s) => s.set_number === setNum) ??
+        lastSets[setNum - 1];
+      await supabase.from("workout_sets").insert({
+        user_id: userId,
+        workout_id: workoutId,
+        workout_exercise_id: newEx.id,
+        exercise_name: exerciseName,
+        set_number: setNum,
+        reps: lastSet?.reps ?? ex.default_reps ?? null,
+        weight: lastSet?.weight ?? null,
+        unit: lastSet?.unit ?? "lbs",
+        is_warmup: false,
+        sort_order: setNum,
+      });
+    }
   }
 }
 
@@ -847,6 +991,46 @@ export async function updateWorkoutSet(formData: FormData) {
   }
 
   revalidateGymPaths(workoutId);
+}
+
+export async function updateSetRestSeconds(
+  setId: string,
+  workoutId: string,
+  restSeconds: number,
+) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("workout_sets")
+    .update({ rest_seconds: Math.max(0, Math.round(restSeconds)) })
+    .eq("id", setId)
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+  revalidateGymPaths(workoutId);
+}
+
+export async function getActiveWorkout(): Promise<Workout | null> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const select = await resolveWorkoutSelect(supabase);
+
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(select)
+    .eq("user_id", user.id)
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw error;
+  }
+
+  return data ? sortWorkoutData(data as unknown as Workout) : null;
 }
 
 export async function deleteWorkoutSet(setId: string, workoutId: string) {

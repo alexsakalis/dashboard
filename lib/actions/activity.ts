@@ -97,8 +97,9 @@ export async function getActivityTimeline(days = 14) {
   }
 
   for (const row of habitsRes.data ?? []) {
-    const habit = row.habits as { name: string; icon: string | null } | null;
-    if (!habit) continue;
+    const joined = row.habits;
+    const habit = Array.isArray(joined) ? joined[0] : joined;
+    if (!habit?.name) continue;
     events.push(
       habitToActivity({
         id: row.habit_id,

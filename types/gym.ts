@@ -217,6 +217,7 @@ export interface ExercisePersonalRecord {
 export interface GymPreferences {
   user_id: string;
   default_weight_unit: string;
+  default_rest_seconds: number;
   preferred_splits: string[];
   updated_at: string;
 }
@@ -236,6 +237,7 @@ export interface GymDashboardSummary {
   latestBodyWeight: BodyWeightLog | null;
   recentPRs: ExercisePersonalRecord[];
   topProgressing: ExerciseProgressSummary[];
+  weightUnit: string;
 }
 
 export interface LastWorkoutReference {

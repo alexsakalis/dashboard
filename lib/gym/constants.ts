@@ -10,6 +10,9 @@ export const WORKOUT_SPLITS: WorkoutSplit[] = [
   "custom",
 ];
 
+/** Default rest between working sets (seconds). */
+export const DEFAULT_REST_SECONDS = 90;
+
 export const SPLIT_LABELS: Record<WorkoutSplit, string> = {
   push: "Push",
   pull: "Pull",

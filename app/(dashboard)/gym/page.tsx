@@ -1,36 +1,47 @@
 import Link from "next/link";
-import { ChevronRight, History, LineChart, Scale, LayoutTemplate, Dumbbell } from "lucide-react";
+import { ChevronRight, History, LineChart, Scale, LayoutTemplate, Dumbbell, BarChart3, Settings, CalendarDays, Calculator } from "lucide-react";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
-import { getGymDashboard, getLastWorkoutReference } from "@/lib/actions/gym";
+import { getGymDashboard, getLastWorkoutReference, getActiveWorkout } from "@/lib/actions/gym";
 import { getGymHealthInsight } from "@/lib/gym/health-insight";
 import { StartWorkoutSheet } from "@/components/gym/StartWorkoutSheet";
 import { QuickRepeatButtons } from "@/components/gym/QuickRepeatButtons";
+import { ActiveWorkoutBanner } from "@/components/gym/ActiveWorkoutBanner";
 import { GymHealthInsightCard } from "@/components/gym/GymHealthInsightCard";
 import {
   GymDashboardStats,
   LastWorkoutCard,
   RecentPRsList,
 } from "@/components/gym/GymDashboardStats";
+import { TopProgressingList } from "@/components/gym/TopProgressingList";
 import { SPLIT_LABELS } from "@/lib/gym/constants";
 import { Card } from "@/components/ui/card";
 
 async function GymDashboardContent() {
-  const summary = await getGymDashboard();
+  const [summary, activeWorkout] = await Promise.all([
+    getGymDashboard(),
+    getActiveWorkout(),
+  ]);
   const insight = await getGymHealthInsight(summary);
   const lastRef = await getLastWorkoutReference(summary.suggestedSplit);
 
   const navLinks = [
+    { href: "/gym/calendar", label: "Calendar", icon: CalendarDays },
+    { href: "/gym/plates", label: "Plate calculator", icon: Calculator },
+    { href: "/gym/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/gym/exercises", label: "Exercises", icon: Dumbbell },
     { href: "/gym/history", label: "History", icon: History },
     { href: "/gym/progress", label: "Progress", icon: LineChart },
     { href: "/gym/body-weight", label: "Body weight", icon: Scale },
     { href: "/gym/templates", label: "Templates", icon: LayoutTemplate },
+    { href: "/gym/settings", label: "Settings", icon: Settings },
   ];
 
   return (
     <div className="space-y-5">
+      {activeWorkout && <ActiveWorkoutBanner workout={activeWorkout} />}
+
       <GymHealthInsightCard insight={insight} />
 
       <GymDashboardStats summary={summary} />
@@ -53,6 +64,7 @@ async function GymDashboardContent() {
       </div>
 
       <LastWorkoutCard summary={summary} />
+      <TopProgressingList exercises={summary.topProgressing} />
       <RecentPRsList summary={summary} />
 
       <div className="space-y-2">

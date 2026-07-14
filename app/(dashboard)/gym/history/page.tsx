@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CardSkeleton } from "@/components/dashboard/CardSkeleton";
-import { getWorkouts } from "@/lib/actions/gym";
 import {
   WorkoutHistoryList,
 } from "@/components/gym/WorkoutHistoryList";
 import { WorkoutHistoryFiltersWrapper } from "@/components/gym/WorkoutHistoryFiltersWrapper";
+import { ExportWorkoutsButton } from "@/components/gym/ExportWorkoutsButton";
+import { getWorkouts } from "@/lib/actions/gym";
 import type { WorkoutSplit } from "@/types/gym";
 
 async function HistoryContent({
@@ -32,7 +33,11 @@ export default async function GymHistoryPage({
 
   return (
     <>
-      <PageHeader title="Workout History" subtitle="Browse past sessions" />
+      <PageHeader
+        title="Workout History"
+        subtitle="Browse past sessions"
+        action={<ExportWorkoutsButton />}
+      />
       <main className="px-4 py-4">
         <Suspense fallback={<CardSkeleton />}>
           <WorkoutHistoryFiltersWrapper>

@@ -33,18 +33,21 @@ export function matchSplitFromName(name: string): WorkoutSplit | null {
   return null;
 }
 
-export function suggestNextSplit(recentWorkouts: Workout[]): WorkoutSplit {
-  const preferred: WorkoutSplit[] = ["push", "pull", "legs"];
+export function suggestNextSplit(
+  recentWorkouts: Workout[],
+  preferred: WorkoutSplit[] = ["push", "pull", "legs"],
+): WorkoutSplit {
+  const rotation = preferred.length > 0 ? preferred : (["push", "pull", "legs"] as WorkoutSplit[]);
   const completed = recentWorkouts.filter((w) => w.completed_at && w.split);
 
-  if (completed.length === 0) return "push";
+  if (completed.length === 0) return rotation[0];
 
   const lastSplit = completed[0].split as WorkoutSplit;
-  const lastIndex = preferred.indexOf(lastSplit);
+  const lastIndex = rotation.indexOf(lastSplit);
   if (lastIndex >= 0) {
-    return preferred[(lastIndex + 1) % preferred.length];
+    return rotation[(lastIndex + 1) % rotation.length];
   }
-  return preferred[0];
+  return rotation[0];
 }
 
 export function suggestProgression(
