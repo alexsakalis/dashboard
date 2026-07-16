@@ -10,7 +10,56 @@ import {
   advanceRecurrenceAfterComplete,
   processRecurrenceRulesForUser,
 } from "@/lib/tasks/recurrence";
-import type { TaskPriority, TaskStatus } from "@/types";
+import type { RecurrenceFrequency, TaskPriority, TaskStatus } from "@/types";
+
+const TASK_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "urgent"];
+const RECURRENCE_FREQUENCIES: RecurrenceFrequency[] = [
+  "daily",
+  "weekly",
+  "monthly",
+];
+
+function parsePriority(value: FormDataEntryValue | null): TaskPriority {
+  if (!value) return "medium";
+  if (typeof value !== "string" || !TASK_PRIORITIES.includes(value as TaskPriority)) {
+    throw new Error("Invalid task priority");
+  }
+  return value as TaskPriority;
+}
+
+function parseFrequency(value: FormDataEntryValue | null): RecurrenceFrequency {
+  if (!value) return "daily";
+  if (
+    typeof value !== "string" ||
+    !RECURRENCE_FREQUENCIES.includes(value as RecurrenceFrequency)
+  ) {
+    throw new Error("Invalid recurrence frequency");
+  }
+  return value as RecurrenceFrequency;
+}
+
+function getOptionalString(value: FormDataEntryValue | null): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+async function requireOwnedCategoryId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  categoryId: string | null,
+): Promise<string | null> {
+  if (!categoryId) return null;
+
+  const { data, error } = await supabase
+    .from("task_categories")
+    .select("id")
+    .eq("id", categoryId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error("Invalid task category");
+  return data.id;
+}
 
 export async function getTasks(filter?: "today" | "upcoming" | "recurring" | "all") {
   const user = await requireUser();
@@ -54,13 +103,18 @@ export async function createTask(formData: FormData) {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const title = formData.get("title") as string;
-  const description = (formData.get("description") as string) || null;
-  const priority = (formData.get("priority") as TaskPriority) || "medium";
-  const dueDate = (formData.get("due_date") as string) || null;
-  const categoryId = (formData.get("category_id") as string) || null;
+  const title = getOptionalString(formData.get("title"));
+  if (!title) throw new Error("Task title is required");
+  const description = getOptionalString(formData.get("description"));
+  const priority = parsePriority(formData.get("priority"));
+  const dueDate = getOptionalString(formData.get("due_date"));
+  const categoryId = await requireOwnedCategoryId(
+    supabase,
+    user.id,
+    getOptionalString(formData.get("category_id")),
+  );
   const isRecurring = formData.get("is_recurring") === "true";
-  const frequency = (formData.get("frequency") as string) || "daily";
+  const frequency = parseFrequency(formData.get("frequency"));
 
   let recurrenceRuleId: string | null = null;
 
@@ -90,7 +144,16 @@ export async function createTask(formData: FormData) {
     recurrence_rule_id: recurrenceRuleId,
   });
 
-  if (error) throw error;
+  if (error) {
+    if (recurrenceRuleId) {
+      await supabase
+        .from("recurrence_rules")
+        .delete()
+        .eq("id", recurrenceRuleId)
+        .eq("user_id", user.id);
+    }
+    throw error;
+  }
   revalidatePath("/");
   revalidatePath("/tasks");
   await refreshDashboardSummaryForCurrentUser();

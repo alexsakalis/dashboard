@@ -6,7 +6,60 @@ import {
   parseISO,
 } from "date-fns";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RecurrenceRule } from "@/types";
+import type { RecurrenceRule, TaskPriority } from "@/types";
+
+const TASK_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "urgent"];
+
+type NormalizedTemplateTask = {
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  category_id: string | null;
+};
+
+function normalizeTemplateTask(
+  template: RecurrenceRule["template_task"] | null | undefined,
+): NormalizedTemplateTask | null {
+  if (!template || typeof template.title !== "string" || !template.title.trim()) {
+    return null;
+  }
+
+  const priority = TASK_PRIORITIES.includes(template.priority)
+    ? template.priority
+    : "medium";
+  const categoryId =
+    typeof template.category_id === "string" && template.category_id.trim()
+      ? template.category_id
+      : null;
+
+  return {
+    title: template.title.trim(),
+    description:
+      typeof template.description === "string" && template.description.trim()
+        ? template.description.trim()
+        : null,
+    priority,
+    category_id: categoryId,
+  };
+}
+
+async function resolveTemplateCategoryId(
+  supabase: SupabaseClient,
+  userId: string,
+  categoryId: string | null,
+): Promise<string | null> {
+  if (!categoryId) return null;
+
+  const { data, error } = await supabase
+    .from("task_categories")
+    .select("id")
+    .eq("id", categoryId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data?.id ?? null;
+}
 
 export function todayDateString(): string {
   return format(new Date(), "yyyy-MM-dd");
@@ -36,7 +89,7 @@ export async function ensureRecurrenceTask(
   rule: RecurrenceRule,
   dueDate: string,
 ): Promise<boolean> {
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("tasks")
     .select("id")
     .eq("user_id", userId)
@@ -45,16 +98,23 @@ export async function ensureRecurrenceTask(
     .eq("status", "todo")
     .maybeSingle();
 
+  if (existingError) throw existingError;
   if (existing) return false;
 
-  const template = rule.template_task;
+  const template = normalizeTemplateTask(rule.template_task);
+  if (!template) return false;
+  const categoryId = await resolveTemplateCategoryId(
+    supabase,
+    userId,
+    template.category_id,
+  );
 
   const { error } = await supabase.from("tasks").insert({
     user_id: userId,
     title: template.title,
     description: template.description ?? null,
     priority: template.priority ?? "medium",
-    category_id: template.category_id ?? null,
+    category_id: categoryId,
     due_date: dueDate,
     recurrence_rule_id: rule.id,
     status: "todo",
@@ -82,38 +142,48 @@ export async function processRecurrenceRulesForUser(
   for (const row of rules) {
     const rule = row as RecurrenceRule;
 
-    const { data: openTodo } = await supabase
-      .from("tasks")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("recurrence_rule_id", rule.id)
-      .eq("status", "todo")
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data: openTodo, error: openTodoError } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("recurrence_rule_id", rule.id)
+        .eq("status", "todo")
+        .limit(1)
+        .maybeSingle();
 
-    if (openTodo) continue;
+      if (openTodoError) throw openTodoError;
+      if (openTodo) continue;
 
-    let dueDate = rule.next_occurrence ?? today;
-    if (dueDate < today) {
-      dueDate = today;
-    }
+      let dueDate = rule.next_occurrence ?? today;
+      if (dueDate < today) {
+        dueDate = today;
+      }
 
-    if (dueDate > today) continue;
+      if (dueDate > today) continue;
 
-    const wasCreated = await ensureRecurrenceTask(
-      supabase,
-      userId,
-      rule,
-      dueDate,
-    );
-    if (wasCreated) created++;
+      const wasCreated = await ensureRecurrenceTask(
+        supabase,
+        userId,
+        rule,
+        dueDate,
+      );
+      if (wasCreated) created++;
 
-    if (rule.next_occurrence !== dueDate) {
-      await supabase
-        .from("recurrence_rules")
-        .update({ next_occurrence: dueDate })
-        .eq("id", rule.id)
-        .eq("user_id", userId);
+      if (rule.next_occurrence !== dueDate) {
+        const { error: updateError } = await supabase
+          .from("recurrence_rules")
+          .update({ next_occurrence: dueDate })
+          .eq("id", rule.id)
+          .eq("user_id", userId);
+        if (updateError) throw updateError;
+      }
+    } catch (error) {
+      console.error("Skipping recurrence rule after processing error", {
+        ruleId: rule.id,
+        userId,
+        error,
+      });
     }
   }
 
