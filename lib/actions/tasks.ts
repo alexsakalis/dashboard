@@ -135,6 +135,8 @@ export async function completeTask(taskId: string) {
 
   if (fetchError || !task) throw fetchError ?? new Error("Task not found");
 
+  await advanceRecurrenceAfterComplete(supabase, user.id, task);
+
   const { error } = await supabase
     .from("tasks")
     .update({
@@ -152,8 +154,6 @@ export async function completeTask(taskId: string) {
     !!task.recurrence_rule_id,
   );
 
-  await advanceRecurrenceAfterComplete(supabase, user.id, task);
-
   revalidatePath("/");
   revalidatePath("/tasks");
   await refreshDashboardSummaryForCurrentUser();
@@ -163,6 +163,15 @@ export async function deleteTask(taskId: string) {
   const user = await requireUser();
   const supabase = await createClient();
 
+  const { data: task, error: fetchError } = await supabase
+    .from("tasks")
+    .select("recurrence_rule_id")
+    .eq("id", taskId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (fetchError || !task) throw fetchError ?? new Error("Task not found");
+
   const { error } = await supabase
     .from("tasks")
     .delete()
@@ -170,6 +179,16 @@ export async function deleteTask(taskId: string) {
     .eq("user_id", user.id);
 
   if (error) throw error;
+
+  if (task.recurrence_rule_id) {
+    const { error: ruleError } = await supabase
+      .from("recurrence_rules")
+      .delete()
+      .eq("id", task.recurrence_rule_id)
+      .eq("user_id", user.id);
+    if (ruleError) throw ruleError;
+  }
+
   revalidatePath("/");
   revalidatePath("/tasks");
   await refreshDashboardSummaryForCurrentUser();

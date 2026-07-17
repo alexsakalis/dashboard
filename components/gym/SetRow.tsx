@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { type RefObject, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, StickyNote, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -53,17 +53,32 @@ export function SetRow({
   const router = useRouter();
   const { startRestTimer, celebratePr, existingPRs } = useWorkoutSession();
   const weightRef = useRef<HTMLInputElement>(null);
+  const repsRef = useRef<HTMLInputElement>(null);
+  const rpeRef = useRef<HTMLInputElement>(null);
+  const notesRef = useRef<HTMLInputElement>(null);
+  const isWarmupRef = useRef(set.is_warmup);
+
+  function currentInputValue(
+    ref: RefObject<HTMLInputElement | null>,
+    fallback: string | number | null,
+  ) {
+    return ref.current?.value ?? String(fallback ?? "");
+  }
 
   function save(field: string, value: string | boolean) {
     if (!isActive) return;
+    if (field === "is_warmup") {
+      isWarmupRef.current = value === true || value === "true";
+    }
+
     const formData = new FormData();
     formData.set("set_id", set.id);
     formData.set("workout_id", workoutId);
-    formData.set("reps", String(set.reps ?? ""));
-    formData.set("weight", String(set.weight ?? ""));
-    formData.set("rpe", String(set.rpe ?? ""));
-    formData.set("is_warmup", set.is_warmup ? "true" : "false");
-    formData.set("notes", String(set.notes ?? ""));
+    formData.set("reps", currentInputValue(repsRef, set.reps));
+    formData.set("weight", currentInputValue(weightRef, set.weight));
+    formData.set("rpe", currentInputValue(rpeRef, set.rpe));
+    formData.set("is_warmup", isWarmupRef.current ? "true" : "false");
+    formData.set("notes", currentInputValue(notesRef, set.notes));
     formData.set(field, String(value));
 
     startTransition(async () => {
@@ -73,7 +88,7 @@ export function SetRow({
   }
 
   function checkForPr(weightValue: string, repsValue: string) {
-    if (set.is_warmup) return;
+    if (isWarmupRef.current) return;
     const weight = Number.parseFloat(weightValue);
     const reps = Number.parseInt(repsValue, 10);
     if (!Number.isFinite(weight) || weight < 0 || !Number.isFinite(reps) || reps <= 0) {
@@ -134,6 +149,7 @@ export function SetRow({
               onBlur={(e) => save("weight", e.target.value)}
             />
             <Input
+              ref={repsRef}
               type="number"
               inputMode="numeric"
               min={0}
@@ -143,6 +159,7 @@ export function SetRow({
               onBlur={(e) => handleRepsBlur(e.target.value)}
             />
             <Input
+              ref={rpeRef}
               type="number"
               inputMode="decimal"
               min={1}
@@ -205,6 +222,7 @@ export function SetRow({
       </div>
       {isActive && showNotes && (
         <Input
+          ref={notesRef}
           defaultValue={set.notes ?? ""}
           placeholder="Set notes (form, pain, machine…)"
           className="mb-1 h-8 text-xs"

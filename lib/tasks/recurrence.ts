@@ -36,15 +36,17 @@ export async function ensureRecurrenceTask(
   rule: RecurrenceRule,
   dueDate: string,
 ): Promise<boolean> {
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("tasks")
     .select("id")
     .eq("user_id", userId)
     .eq("recurrence_rule_id", rule.id)
     .eq("due_date", dueDate)
-    .eq("status", "todo")
+    .in("status", ["todo", "done"])
+    .limit(1)
     .maybeSingle();
 
+  if (existingError) throw existingError;
   if (existing) return false;
 
   const template = rule.template_task;
@@ -82,7 +84,7 @@ export async function processRecurrenceRulesForUser(
   for (const row of rules) {
     const rule = row as RecurrenceRule;
 
-    const { data: openTodo } = await supabase
+    const { data: openTodo, error: openTodoError } = await supabase
       .from("tasks")
       .select("id")
       .eq("user_id", userId)
@@ -91,6 +93,7 @@ export async function processRecurrenceRulesForUser(
       .limit(1)
       .maybeSingle();
 
+    if (openTodoError) throw openTodoError;
     if (openTodo) continue;
 
     let dueDate = rule.next_occurrence ?? today;
