@@ -30,6 +30,8 @@ export async function getJournalEntry(
     .eq("user_id", user.id)
     .eq("note_type", "journal")
     .eq("title", date)
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) throw error;
@@ -71,32 +73,25 @@ export async function saveJournalEntry(body: string, dateStr?: string) {
   const date = dateStr ?? journalDateKey();
   const trimmed = body.trim();
 
-  const { data: existing } = await supabase
-    .from("notes")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("note_type", "journal")
-    .eq("title", date)
-    .maybeSingle();
-
-  if (existing) {
-    if (!trimmed) {
-      const { error } = await supabase.from("notes").delete().eq("id", existing.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from("notes")
-        .update({ body: trimmed, updated_at: new Date().toISOString() })
-        .eq("id", existing.id);
-      if (error) throw error;
-    }
-  } else if (trimmed) {
-    const { error } = await supabase.from("notes").insert({
-      user_id: user.id,
-      note_type: "journal",
-      title: date,
-      body: trimmed,
-    });
+  if (!trimmed) {
+    const { error } = await supabase
+      .from("notes")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("note_type", "journal")
+      .eq("title", date);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("notes").upsert(
+      {
+        user_id: user.id,
+        note_type: "journal",
+        title: date,
+        body: trimmed,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,note_type,title" },
+    );
     if (error) throw error;
   }
 
