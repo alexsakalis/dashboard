@@ -12,6 +12,15 @@ import {
 } from "@/lib/tasks/recurrence";
 import type { TaskPriority, TaskStatus } from "@/types";
 
+type TaskUpdateInput = {
+  title?: string;
+  description?: string | null;
+  priority?: TaskPriority;
+  due_date?: string | null;
+  category_id?: string | null;
+  status?: TaskStatus;
+};
+
 export async function getTasks(filter?: "today" | "upcoming" | "recurring" | "all") {
   const user = await requireUser();
   const supabase = await createClient();
@@ -98,25 +107,38 @@ export async function createTask(formData: FormData) {
 
 export async function updateTask(
   taskId: string,
-  updates: {
-    title?: string;
-    description?: string | null;
-    priority?: TaskPriority;
-    due_date?: string | null;
-    category_id?: string | null;
-    status?: TaskStatus;
-  },
+  updates: TaskUpdateInput,
 ) {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const { data: updatedTask, error } = await supabase
     .from("tasks")
     .update(updates)
     .eq("id", taskId)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("recurrence_rule_id,title,description,priority,category_id")
+    .maybeSingle();
 
   if (error) throw error;
+
+  if (updatedTask?.recurrence_rule_id && shouldSyncRecurrenceTemplate(updates)) {
+    const { error: ruleError } = await supabase
+      .from("recurrence_rules")
+      .update({
+        template_task: {
+          title: updatedTask.title,
+          description: updatedTask.description,
+          priority: updatedTask.priority,
+          category_id: updatedTask.category_id,
+        },
+      })
+      .eq("id", updatedTask.recurrence_rule_id)
+      .eq("user_id", user.id);
+
+    if (ruleError) throw ruleError;
+  }
+
   revalidatePath("/");
   revalidatePath("/tasks");
   await refreshDashboardSummaryForCurrentUser();
@@ -191,6 +213,15 @@ export async function createCategory(name: string, color: string) {
 
 function today() {
   return format(new Date(), "yyyy-MM-dd");
+}
+
+function shouldSyncRecurrenceTemplate(updates: TaskUpdateInput) {
+  return (
+    "title" in updates ||
+    "description" in updates ||
+    "priority" in updates ||
+    "category_id" in updates
+  );
 }
 
 export async function processRecurringTasksForCurrentUser(): Promise<number> {
