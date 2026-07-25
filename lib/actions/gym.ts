@@ -11,7 +11,7 @@ import {
   buildLastWorkoutReference,
   enrichWorkout,
 } from "@/lib/gym/enrich";
-import { detectPRsFromSets } from "@/lib/gym/progress";
+import { computePersonalRecordsFromSets } from "@/lib/gym/progress";
 import {
   DEFAULT_TEMPLATE_EXERCISES,
   DEFAULT_REST_SECONDS,
@@ -40,8 +40,10 @@ import type {
   ExercisePersonalRecord,
   GymPreferences,
   LastWorkoutReference,
+  RecordType,
   Workout,
   WorkoutFilters,
+  WorkoutSet,
   WorkoutSplit,
   WorkoutTemplate,
   WorkoutTemplateExercise,
@@ -87,6 +89,38 @@ function sortWorkoutData<T extends Workout>(workout: T): T {
   }
   normalized.workout_sets?.sort((a, b) => a.set_number - b.set_number);
   return normalized as T;
+}
+
+const PERSONAL_RECORD_TYPES: RecordType[] = [
+  "max_weight",
+  "max_reps",
+  "estimated_1rm",
+  "max_volume_set",
+];
+
+function collectWorkoutSets(workout: Workout): WorkoutSet[] {
+  const byId = new Map<string, WorkoutSet>();
+
+  for (const set of workout.workout_sets ?? []) {
+    byId.set(set.id, set);
+  }
+
+  for (const exercise of workout.workout_exercises ?? []) {
+    for (const set of exercise.workout_sets ?? []) {
+      byId.set(set.id, set);
+    }
+  }
+
+  return [...byId.values()];
+}
+
+function getWorkoutExerciseNames(workout: Workout): string[] {
+  return [
+    ...new Set([
+      ...collectWorkoutSets(workout).map((set) => set.exercise_name),
+      ...(workout.workout_exercises ?? []).map((exercise) => exercise.exercise_name),
+    ]),
+  ];
 }
 
 export async function getWorkouts(filters: WorkoutFilters = {}) {
@@ -881,6 +915,7 @@ export async function addWorkoutExercise(formData: FormData) {
 export async function removeWorkoutExercise(exerciseId: string, workoutId: string) {
   const user = await requireUser();
   const supabase = await createClient();
+  const workout = await getWorkout(workoutId);
 
   const { error } = await supabase
     .from("workout_exercises")
@@ -889,6 +924,9 @@ export async function removeWorkoutExercise(exerciseId: string, workoutId: strin
     .eq("user_id", user.id);
 
   if (error) throw error;
+  if (workout.completed_at) {
+    await rebuildPRsForWorkout(user.id, workout);
+  }
   revalidateGymPaths(workoutId);
 }
 
@@ -949,6 +987,10 @@ export async function addWorkoutSet(formData: FormData) {
     .single();
 
   if (error) throw error;
+  const workout = await getWorkout(parsed.workout_id);
+  if (workout.completed_at) {
+    await rebuildPRsForWorkout(user.id, workout);
+  }
   revalidateGymPaths(parsed.workout_id);
   return data;
 }
@@ -1036,6 +1078,7 @@ export async function getActiveWorkout(): Promise<Workout | null> {
 export async function deleteWorkoutSet(setId: string, workoutId: string) {
   const user = await requireUser();
   const supabase = await createClient();
+  const workout = await getWorkout(workoutId);
 
   const { error } = await supabase
     .from("workout_sets")
@@ -1044,6 +1087,9 @@ export async function deleteWorkoutSet(setId: string, workoutId: string) {
     .eq("user_id", user.id);
 
   if (error) throw error;
+  if (workout.completed_at) {
+    await rebuildPRsForWorkout(user.id, workout);
+  }
   revalidateGymPaths(workoutId);
 }
 
@@ -1087,40 +1133,114 @@ export async function duplicateSet(setId: string, workoutId: string) {
     .single();
 
   if (error) throw error;
+  const workout = await getWorkout(workoutId);
+  if (workout.completed_at) {
+    await rebuildPRsForWorkout(user.id, workout);
+  }
   revalidateGymPaths(workoutId);
   return data;
 }
 
 async function rebuildPRsForWorkout(userId: string, workout: Workout) {
   const supabase = await createClient();
-  const sets = workout.workout_sets ?? [];
+  const exerciseNames = getWorkoutExerciseNames(workout);
+  if (exerciseNames.length === 0) return;
 
-  const { data: existingPRs, error: existingError } = await supabase
+  const { error: recordsCheckError } = await supabase
     .from("exercise_personal_records")
-    .select("*")
-    .eq("user_id", userId);
+    .select("id")
+    .eq("user_id", userId)
+    .limit(1);
 
-  if (existingError && isMissingSchemaError(existingError)) return;
-  if (existingError) throw existingError;
+  if (recordsCheckError && isMissingSchemaError(recordsCheckError)) return;
+  if (recordsCheckError) throw recordsCheckError;
 
-  const detected = detectPRsFromSets(sets, (existingPRs ?? []) as ExercisePersonalRecord[]);
-  const achievedAt = workout.completed_at ?? new Date().toISOString();
+  await syncPersonalRecordsForExercises(supabase, userId, exerciseNames);
+}
 
-  for (const pr of detected) {
-    await supabase.from("exercise_personal_records").upsert(
-      {
+async function syncPersonalRecordsForExercises(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  exerciseNames: string[],
+) {
+  const names = [...new Set(exerciseNames)].filter(Boolean);
+  if (names.length === 0) return;
+
+  const select = await resolveWorkoutSelect(supabase);
+  let { data, error } = await supabase
+    .from("workouts")
+    .select(select)
+    .eq("user_id", userId)
+    .not("completed_at", "is", null)
+    .order("completed_at", { ascending: true });
+
+  if (error && isMissingSchemaError(error)) {
+    cachedUsesFullGymSchema = false;
+    ({ data, error } = await supabase
+      .from("workouts")
+      .select(LEGACY_WORKOUT_SELECT)
+      .eq("user_id", userId)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: true }));
+  }
+
+  if (error) throw error;
+
+  const nameSet = new Set(names);
+  const completedAtBySetId = new Map<string, string>();
+  const sourceSets: WorkoutSet[] = [];
+
+  for (const rawWorkout of data ?? []) {
+    const completedWorkout = sortWorkoutData(rawWorkout as unknown as Workout);
+    if (!completedWorkout.completed_at) continue;
+
+    for (const set of collectWorkoutSets(completedWorkout)) {
+      if (!nameSet.has(set.exercise_name)) continue;
+      sourceSets.push(set);
+      completedAtBySetId.set(set.id, completedWorkout.completed_at);
+    }
+  }
+
+  const desired = computePersonalRecordsFromSets(sourceSets);
+  if (desired.length > 0) {
+    const { error: upsertError } = await supabase.from("exercise_personal_records").upsert(
+      desired.map((pr) => ({
         user_id: userId,
         exercise_name: pr.exercise_name,
         record_type: pr.record_type,
         value: pr.value,
         reps: pr.reps,
         weight: pr.weight,
-        achieved_at: achievedAt,
-        workout_id: workout.id,
+        achieved_at: completedAtBySetId.get(pr.set_id) ?? new Date().toISOString(),
+        workout_id: sourceSets.find((set) => set.id === pr.set_id)?.workout_id ?? null,
         set_id: pr.set_id,
-      },
+      })),
       { onConflict: "user_id,exercise_name,record_type" },
     );
+
+    if (upsertError) throw upsertError;
+  }
+
+  const desiredTypesByExercise = new Map<string, Set<RecordType>>();
+  for (const pr of desired) {
+    const recordTypes = desiredTypesByExercise.get(pr.exercise_name) ?? new Set<RecordType>();
+    recordTypes.add(pr.record_type);
+    desiredTypesByExercise.set(pr.exercise_name, recordTypes);
+  }
+
+  for (const exerciseName of names) {
+    const desiredTypes = desiredTypesByExercise.get(exerciseName) ?? new Set<RecordType>();
+    for (const recordType of PERSONAL_RECORD_TYPES) {
+      if (desiredTypes.has(recordType)) continue;
+      const { error: deleteError } = await supabase
+        .from("exercise_personal_records")
+        .delete()
+        .eq("user_id", userId)
+        .eq("exercise_name", exerciseName)
+        .eq("record_type", recordType);
+
+      if (deleteError) throw deleteError;
+    }
   }
 }
 
@@ -1189,6 +1309,7 @@ export async function completeWorkout(formData: FormData) {
 export async function deleteWorkout(workoutId: string) {
   const user = await requireUser();
   const supabase = await createClient();
+  const workout = await getWorkout(workoutId);
 
   const { error } = await supabase
     .from("workouts")
@@ -1197,6 +1318,9 @@ export async function deleteWorkout(workoutId: string) {
     .eq("user_id", user.id);
 
   if (error) throw error;
+  if (workout.completed_at) {
+    await rebuildPRsForWorkout(user.id, workout);
+  }
   revalidateGymPaths();
 }
 

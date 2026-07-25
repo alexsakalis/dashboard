@@ -84,52 +84,63 @@ export interface DetectedPR {
   set_id: string;
 }
 
-export function detectPRsFromSets(
-  sets: WorkoutSet[],
-  existingPRs: ExercisePersonalRecord[],
-): DetectedPR[] {
-  const detected: DetectedPR[] = [];
-  const byExercise = new Map<string, WorkoutSet[]>();
+const RECORD_TYPES: RecordType[] = [
+  "max_weight",
+  "max_reps",
+  "estimated_1rm",
+  "max_volume_set",
+];
+
+export function computePersonalRecordsFromSets(sets: WorkoutSet[]): DetectedPR[] {
+  const best = new Map<string, DetectedPR>();
 
   for (const set of sets.filter((s) => !s.is_warmup)) {
-    const list = byExercise.get(set.exercise_name) ?? [];
-    list.push(set);
-    byExercise.set(set.exercise_name, list);
-  }
+    if (set.weight == null || set.reps == null) continue;
 
-  for (const [exerciseName, exerciseSets] of byExercise) {
-    const existing = existingPRs.filter((p) => p.exercise_name === exerciseName);
+    const e1rm = estimate1RM(set.weight, set.reps);
+    const volume = setVolume(set.reps, set.weight);
+    const checks: { type: RecordType; value: number }[] = [
+      { type: "max_weight", value: set.weight },
+      { type: "max_reps", value: set.reps },
+      { type: "estimated_1rm", value: e1rm },
+      { type: "max_volume_set", value: volume },
+    ];
 
-    for (const set of exerciseSets) {
-      if (set.weight == null || set.reps == null) continue;
-
-      const e1rm = estimate1RM(set.weight, set.reps);
-      const volume = setVolume(set.reps, set.weight);
-
-      const checks: { type: RecordType; value: number }[] = [
-        { type: "max_weight", value: set.weight },
-        { type: "max_reps", value: set.reps },
-        { type: "estimated_1rm", value: e1rm },
-        { type: "max_volume_set", value: volume },
-      ];
-
-      for (const { type, value } of checks) {
-        const prev = existing.find((p) => p.record_type === type);
-        if (!prev || value > prev.value) {
-          detected.push({
-            exercise_name: exerciseName,
-            record_type: type,
-            value,
-            reps: set.reps,
-            weight: set.weight,
-            set_id: set.id,
-          });
-        }
+    for (const { type, value } of checks) {
+      const key = `${set.exercise_name}:${type}`;
+      const previous = best.get(key);
+      if (!previous || value > previous.value) {
+        best.set(key, {
+          exercise_name: set.exercise_name,
+          record_type: type,
+          value,
+          reps: set.reps,
+          weight: set.weight,
+          set_id: set.id,
+        });
       }
     }
   }
 
-  return detected;
+  return [...best.values()].sort((a, b) => {
+    const exerciseCompare = a.exercise_name.localeCompare(b.exercise_name);
+    if (exerciseCompare !== 0) return exerciseCompare;
+    return RECORD_TYPES.indexOf(a.record_type) - RECORD_TYPES.indexOf(b.record_type);
+  });
+}
+
+export function detectPRsFromSets(
+  sets: WorkoutSet[],
+  existingPRs: ExercisePersonalRecord[],
+): DetectedPR[] {
+  return computePersonalRecordsFromSets(sets).filter((candidate) => {
+    const prev = existingPRs.find(
+      (record) =>
+        record.exercise_name === candidate.exercise_name &&
+        record.record_type === candidate.record_type,
+    );
+    return !prev || candidate.value > prev.value;
+  });
 }
 
 export function buildExerciseTimeline(
