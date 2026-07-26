@@ -89,6 +89,24 @@ function sortWorkoutData<T extends Workout>(workout: T): T {
   return normalized as T;
 }
 
+async function getNextWorkoutSetNumber(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  workoutExerciseId: string,
+) {
+  const { data, error } = await supabase
+    .from("workout_sets")
+    .select("set_number")
+    .eq("user_id", userId)
+    .eq("workout_exercise_id", workoutExerciseId)
+    .order("set_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return ((data?.set_number as number | null | undefined) ?? 0) + 1;
+}
+
 export async function getWorkouts(filters: WorkoutFilters = {}) {
   const user = await requireUser();
   const supabase = await createClient();
@@ -928,6 +946,12 @@ export async function addWorkoutSet(formData: FormData) {
     unit: formData.get("unit") || "lbs",
   });
 
+  const nextSetNumber = await getNextWorkoutSetNumber(
+    supabase,
+    user.id,
+    parsed.workout_exercise_id,
+  );
+
   const { data, error } = await supabase
     .from("workout_sets")
     .insert({
@@ -935,7 +959,7 @@ export async function addWorkoutSet(formData: FormData) {
       workout_id: parsed.workout_id,
       workout_exercise_id: parsed.workout_exercise_id,
       exercise_name: parsed.exercise_name,
-      set_number: parsed.set_number!,
+      set_number: nextSetNumber,
       reps: parsed.reps,
       weight: parsed.weight,
       unit: parsed.unit ?? "lbs",
@@ -943,7 +967,7 @@ export async function addWorkoutSet(formData: FormData) {
       is_warmup: parsed.is_warmup ?? false,
       rest_seconds: parsed.rest_seconds,
       notes: parsed.notes,
-      sort_order: parsed.set_number!,
+      sort_order: nextSetNumber,
     })
     .select()
     .single();
@@ -1060,12 +1084,11 @@ export async function duplicateSet(setId: string, workoutId: string) {
 
   if (fetchError || !source) throw fetchError ?? new Error("Set not found");
 
-  const { count } = await supabase
-    .from("workout_sets")
-    .select("*", { count: "exact", head: true })
-    .eq("workout_exercise_id", source.workout_exercise_id);
-
-  const nextSetNumber = (count ?? 0) + 1;
+  const nextSetNumber = await getNextWorkoutSetNumber(
+    supabase,
+    user.id,
+    source.workout_exercise_id,
+  );
 
   const { data, error } = await supabase
     .from("workout_sets")
