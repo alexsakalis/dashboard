@@ -71,7 +71,7 @@ export function ExerciseCard({
       : null;
 
   function addSet() {
-    const nextNumber = sets.length + 1;
+    const nextNumber = Math.max(0, ...sets.map((set) => set.set_number)) + 1;
     const lastSet = sets[sets.length - 1];
     const formData = new FormData();
     formData.set("workout_id", workoutId);
