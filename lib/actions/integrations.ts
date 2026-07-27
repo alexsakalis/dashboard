@@ -10,6 +10,41 @@ import { syncGoogleCalendarForUserId } from "@/lib/integrations/google/sync";
 import { createClient } from "@/lib/supabase/server";
 import type { IntegrationProvider } from "@/types";
 
+async function purgeProviderCache(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  provider: IntegrationProvider,
+) {
+  if (provider === "google") {
+    const { error } = await supabase
+      .from("calendar_events")
+      .delete()
+      .eq("user_id", userId)
+      .eq("source", "google");
+
+    if (error) throw error;
+    return;
+  }
+
+  if (provider === "oura" || provider === "apple_health") {
+    const { error: snapshotsError } = await supabase
+      .from("health_daily_snapshots")
+      .delete()
+      .eq("user_id", userId)
+      .eq("source", provider);
+
+    if (snapshotsError) throw snapshotsError;
+
+    const { error: workoutsError } = await supabase
+      .from("health_workouts")
+      .delete()
+      .eq("user_id", userId)
+      .eq("source", provider);
+
+    if (workoutsError) throw workoutsError;
+  }
+}
+
 export async function getIntegrations() {
   const user = await requireUser();
   const supabase = await createClient();
@@ -204,6 +239,8 @@ export async function disconnectIntegration(provider: IntegrationProvider) {
   const user = await requireUser();
   const supabase = await createClient();
 
+  await purgeProviderCache(supabase, user.id, provider);
+
   const { error } = await supabase
     .from("integrations")
     .delete()
@@ -220,4 +257,7 @@ export async function disconnectIntegration(provider: IntegrationProvider) {
 
   revalidatePath("/settings/integrations");
   revalidatePath("/");
+  revalidatePath("/activity");
+  revalidatePath("/calendar");
+  revalidatePath("/health");
 }
