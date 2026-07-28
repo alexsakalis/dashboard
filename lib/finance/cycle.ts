@@ -1,4 +1,5 @@
 import {
+  addMonths,
   endOfMonth,
   parseISO,
   setDate,
@@ -30,7 +31,7 @@ export function getBillingCycle(
         cycleStart = setDate(prevMonth, day);
       }
     }
-    const nextCycleStart = setDate(subDays(startOfMonth(cycleStart), -1), day);
+    const nextCycleStart = setDate(addMonths(startOfMonth(cycleStart), 1), day);
     const cycleEnd =
       nextCycleStart > cycleStart
         ? subDays(nextCycleStart, 1)
