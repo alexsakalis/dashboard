@@ -19,6 +19,51 @@ export function getEffectiveBalance(
   return Math.max(0, Number(openingBalance) - paid);
 }
 
+export interface BalanceSnapshotDraft {
+  snapshot_date: string;
+  balance: number;
+  credit_limit: number | null;
+}
+
+export function buildBalanceSnapshotDrafts(
+  card: Pick<CreditCard, "opening_balance" | "credit_limit">,
+  payments: CreditCardPayment[],
+  today: string,
+): BalanceSnapshotDraft[] {
+  const snapshots = new Map<string, BalanceSnapshotDraft>();
+
+  snapshots.set(today, {
+    snapshot_date: today,
+    balance: getEffectiveBalance(card.opening_balance, payments),
+    credit_limit: card.credit_limit,
+  });
+
+  const completedByDate = new Map<string, number>();
+  for (const payment of payments) {
+    if (payment.status !== "completed") continue;
+    completedByDate.set(
+      payment.payment_date,
+      (completedByDate.get(payment.payment_date) ?? 0) + Number(payment.amount),
+    );
+  }
+
+  let paidThroughDate = 0;
+  for (const [paymentDate, amount] of [...completedByDate.entries()].sort(
+    ([a], [b]) => a.localeCompare(b),
+  )) {
+    paidThroughDate += amount;
+    snapshots.set(paymentDate, {
+      snapshot_date: paymentDate,
+      balance: Math.max(0, Number(card.opening_balance) - paidThroughDate),
+      credit_limit: card.credit_limit,
+    });
+  }
+
+  return [...snapshots.values()].sort((a, b) =>
+    a.snapshot_date.localeCompare(b.snapshot_date),
+  );
+}
+
 export function getAvailableCredit(
   effectiveBalance: number,
   creditLimit: number | null,
