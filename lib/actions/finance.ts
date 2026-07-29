@@ -11,7 +11,11 @@ import {
   enrichCreditCards,
   toLegacySummary,
 } from "@/lib/finance/enrich";
-import { getEffectiveBalance, computeOpeningBalanceForTarget } from "@/lib/finance/calculations";
+import {
+  buildBalanceSnapshotDrafts,
+  getEffectiveBalance,
+  computeOpeningBalanceForTarget,
+} from "@/lib/finance/calculations";
 import {
   creditCardFormSchema,
   creditCardUpdateSchema,
@@ -43,7 +47,7 @@ async function upsertBalanceSnapshot(
   balance: number,
   creditLimit: number | null,
 ) {
-  await supabase.from("credit_card_balance_snapshots").upsert(
+  const { error } = await supabase.from("credit_card_balance_snapshots").upsert(
     {
       user_id: userId,
       card_id: cardId,
@@ -53,6 +57,7 @@ async function upsertBalanceSnapshot(
     },
     { onConflict: "card_id,snapshot_date" },
   );
+  if (error) throw error;
 }
 
 async function syncCardSnapshots(
@@ -62,38 +67,45 @@ async function syncCardSnapshots(
   payments: CreditCardPayment[],
 ) {
   const today = format(new Date(), "yyyy-MM-dd");
-  const effectiveBalance = getEffectiveBalance(card.opening_balance, payments);
-  await upsertBalanceSnapshot(
-    supabase,
-    userId,
-    card.id,
-    today,
-    effectiveBalance,
-    card.credit_limit,
-  );
+  const drafts = buildBalanceSnapshotDrafts(card, payments, today);
+  const expectedDates = new Set(drafts.map((draft) => draft.snapshot_date));
 
-  for (const payment of payments.filter((p) => p.status === "completed")) {
-    const paidBefore = payments
-      .filter(
-        (p) =>
-          p.status === "completed" &&
-          p.payment_date <= payment.payment_date &&
-          p.id !== payment.id,
-      )
-      .reduce((s, p) => s + Number(p.amount), 0);
-    const balanceAtPayment = Math.max(
-      0,
-      card.opening_balance - paidBefore - Number(payment.amount),
-    );
+  for (const draft of drafts) {
     await upsertBalanceSnapshot(
       supabase,
       userId,
       card.id,
-      payment.payment_date,
-      balanceAtPayment,
-      card.credit_limit,
+      draft.snapshot_date,
+      draft.balance,
+      draft.credit_limit,
     );
   }
+
+  const { data: existingSnapshots, error: snapshotError } = await supabase
+    .from("credit_card_balance_snapshots")
+    .select("snapshot_date")
+    .eq("user_id", userId)
+    .eq("card_id", card.id);
+
+  if (snapshotError) throw snapshotError;
+
+  for (const snapshot of existingSnapshots ?? []) {
+    const snapshotDate = snapshot.snapshot_date as string;
+    if (expectedDates.has(snapshotDate)) continue;
+
+    const { error } = await supabase
+      .from("credit_card_balance_snapshots")
+      .delete()
+      .eq("user_id", userId)
+      .eq("card_id", card.id)
+      .eq("snapshot_date", snapshotDate);
+
+    if (error) throw error;
+  }
+}
+
+function hasMeaningfulMoneyChange(next: number, current: number): boolean {
+  return Math.abs(next - current) >= 0.005;
 }
 
 function formDataToObject(formData: FormData): Record<string, unknown> {
@@ -308,7 +320,11 @@ export async function updateCreditCard(cardId: string, formData: FormData) {
 
   if (
     parsed.effective_balance !== null &&
-    parsed.effective_balance !== undefined
+    parsed.effective_balance !== undefined &&
+    hasMeaningfulMoneyChange(
+      parsed.effective_balance,
+      getEffectiveBalance(existing.card.opening_balance, existing.payments),
+    )
   ) {
     openingBalance = computeOpeningBalanceForTarget(
       parsed.effective_balance,
