@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { getOAuthBaseUrl } from "@/lib/env";
 import { exchangeOuraCode } from "@/lib/integrations/oura/oauth";
 import { saveOuraIntegration } from "@/lib/actions/integrations";
+import { parseOAuthStateCookieValue } from "@/lib/oauth/state";
 
 export async function GET(request: Request) {
   const appUrl = getOAuthBaseUrl(request);
@@ -20,17 +21,26 @@ export async function GET(request: Request) {
   }
 
   const cookieStore = await cookies();
-  const savedState = cookieStore.get("oura_oauth_state")?.value;
+  const savedState = parseOAuthStateCookieValue(
+    cookieStore.get("oura_oauth_state")?.value,
+  );
 
-  if (!code || !state || state !== savedState) {
+  if (!code || !state || state !== savedState?.state) {
     return NextResponse.redirect(
       `${appUrl}/settings/integrations?error=invalid_state`,
     );
   }
 
-  try {
-    await requireUser();
+  const user = await requireUser();
 
+  if (savedState.userId !== user.id) {
+    cookieStore.delete("oura_oauth_state");
+    return NextResponse.redirect(
+      `${appUrl}/settings/integrations?error=account_changed`,
+    );
+  }
+
+  try {
     const tokens = await exchangeOuraCode(code, oauthBaseUrl);
     if (!tokens.refreshToken) {
       return NextResponse.redirect(
