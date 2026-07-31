@@ -144,23 +144,31 @@ export async function fetchCalendarEvents(integration: Integration) {
   const events = [];
 
   for (const calendarId of calendarIds) {
-    const response = await calendar.events.list({
-      calendarId,
-      timeMin,
-      timeMax,
-      singleEvents: true,
-      orderBy: "startTime",
-      maxResults: 100,
-    });
+    let pageToken: string | undefined;
 
-    for (const event of response.data.items ?? []) {
-      if (event.status === "cancelled") continue;
-      events.push(mapGoogleEvent(event, calendarId));
-    }
+    do {
+      const response = await calendar.events.list({
+        calendarId,
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 100,
+        pageToken,
+      });
+
+      for (const event of response.data.items ?? []) {
+        if (event.status === "cancelled") continue;
+        events.push(mapGoogleEvent(event, calendarId));
+      }
+
+      pageToken = response.data.nextPageToken ?? undefined;
+    } while (pageToken);
   }
 
   return {
     events,
+    syncWindow: { timeMin, timeMax },
     refreshedCredentials: oauth2.credentials,
   };
 }

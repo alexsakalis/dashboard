@@ -49,8 +49,10 @@ import type {
 
 let cachedUsesFullGymSchema: boolean | null = null;
 
+type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
 async function resolveWorkoutSelect(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ServerSupabaseClient,
 ): Promise<string> {
   if (cachedUsesFullGymSchema === false) return LEGACY_WORKOUT_SELECT;
   if (cachedUsesFullGymSchema === true) return FULL_WORKOUT_SELECT;
@@ -62,6 +64,40 @@ async function resolveWorkoutSelect(
 
   cachedUsesFullGymSchema = !isMissingSchemaError(error);
   return cachedUsesFullGymSchema ? FULL_WORKOUT_SELECT : LEGACY_WORKOUT_SELECT;
+}
+
+async function assertWorkoutOwnership(
+  supabase: ServerSupabaseClient,
+  workoutId: string,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("workouts")
+    .select("id")
+    .eq("id", workoutId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error("Workout not found");
+}
+
+async function assertWorkoutExerciseOwnership(
+  supabase: ServerSupabaseClient,
+  workoutExerciseId: string,
+  workoutId: string,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("workout_exercises")
+    .select("id")
+    .eq("id", workoutExerciseId)
+    .eq("workout_id", workoutId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error("Workout exercise not found");
 }
 
 function revalidateGymPaths(workoutId?: string) {
@@ -855,10 +891,13 @@ export async function addWorkoutExercise(formData: FormData) {
     exercise_library_id: formData.get("exercise_library_id"),
   });
 
+  await assertWorkoutOwnership(supabase, parsed.workout_id, user.id);
+
   const { count } = await supabase
     .from("workout_exercises")
     .select("*", { count: "exact", head: true })
-    .eq("workout_id", parsed.workout_id);
+    .eq("workout_id", parsed.workout_id)
+    .eq("user_id", user.id);
 
   const { data, error } = await supabase
     .from("workout_exercises")
@@ -927,6 +966,13 @@ export async function addWorkoutSet(formData: FormData) {
     notes: formData.get("notes"),
     unit: formData.get("unit") || "lbs",
   });
+
+  await assertWorkoutExerciseOwnership(
+    supabase,
+    parsed.workout_exercise_id,
+    parsed.workout_id,
+    user.id,
+  );
 
   const { data, error } = await supabase
     .from("workout_sets")
