@@ -30,6 +30,41 @@ async function persistGoogleTokens(
     .eq("id", integration.id);
 }
 
+type CalendarSyncWindow = Awaited<ReturnType<typeof fetchCalendarEvents>>["syncWindow"];
+
+async function deleteStaleGoogleCalendarEvents(
+  supabase: SupabaseClient,
+  userId: string,
+  activeExternalIds: Set<string>,
+  syncWindow: CalendarSyncWindow,
+): Promise<number> {
+  const { data: existingEvents, error: readError } = await supabase
+    .from("calendar_events")
+    .select("id, external_id")
+    .eq("user_id", userId)
+    .eq("source", "google")
+    .lt("start_time", syncWindow.timeMax)
+    .gt("end_time", syncWindow.timeMin);
+
+  if (readError) throw readError;
+
+  const staleIds = (existingEvents ?? [])
+    .filter((event) => !activeExternalIds.has(event.external_id))
+    .map((event) => event.id);
+
+  if (staleIds.length === 0) return 0;
+
+  const { error: deleteError } = await supabase
+    .from("calendar_events")
+    .delete()
+    .eq("user_id", userId)
+    .eq("source", "google")
+    .in("id", staleIds);
+
+  if (deleteError) throw deleteError;
+  return staleIds.length;
+}
+
 async function syncGoogleCalendarData(
   integration: Integration,
   ctx: SyncContext,
@@ -37,8 +72,10 @@ async function syncGoogleCalendarData(
   const startedAt = Date.now();
 
   try {
-    const { events, refreshedCredentials } = await fetchCalendarEvents(integration);
+    const { events, refreshedCredentials, syncWindow } =
+      await fetchCalendarEvents(integration);
     await persistGoogleTokens(ctx.supabase, integration, refreshedCredentials);
+    const activeExternalIds = new Set(events.map((event) => event.external_id));
 
     for (const event of events) {
       const { error } = await ctx.supabase.from("calendar_events").upsert(
@@ -50,6 +87,7 @@ async function syncGoogleCalendarData(
           end_time: event.end_time,
           all_day: event.all_day,
           location: event.location,
+          source: "google",
           raw_payload: event.raw_payload,
           synced_at: new Date().toISOString(),
         },
@@ -59,12 +97,19 @@ async function syncGoogleCalendarData(
       if (error) throw error;
     }
 
+    const rowsDeleted = await deleteStaleGoogleCalendarEvents(
+      ctx.supabase,
+      integration.user_id,
+      activeExternalIds,
+      syncWindow,
+    );
+
     return {
       provider: "google",
       status: "success",
-      message: `Synced ${events.length} calendar event(s)`,
+      message: `Synced ${events.length} calendar event(s), removed ${rowsDeleted} stale event(s)`,
       durationMs: Date.now() - startedAt,
-      metadata: { rowsUpserted: events.length },
+      metadata: { rowsUpserted: events.length, rowsDeleted },
     };
   } catch (err) {
     const message =
