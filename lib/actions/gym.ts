@@ -188,6 +188,29 @@ export async function getWorkout(id: string) {
   return sortWorkoutData(data as unknown as Workout);
 }
 
+async function getActiveWorkoutForUser(
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<Workout | null> {
+  const select = await resolveWorkoutSelect(supabase);
+
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(select)
+    .eq("user_id", userId)
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw error;
+  }
+
+  return data ? sortWorkoutData(data as unknown as Workout) : null;
+}
+
 export async function getLastWorkoutBySplit(
   split: WorkoutSplit,
 ): Promise<Workout | null> {
@@ -651,6 +674,9 @@ export async function createWorkout(formData: FormData) {
         ? SPLIT_MUSCLE_GROUPS[split]
         : [];
 
+  const activeWorkout = await getActiveWorkoutForUser(user.id, supabase);
+  if (activeWorkout) return activeWorkout;
+
   const { data: workout, error } = await supabase
     .from("workouts")
     .insert({
@@ -823,6 +849,9 @@ export async function duplicateWorkoutAsNew(
 ) {
   const user = await requireUser();
   const supabase = await createClient();
+  const activeWorkout = await getActiveWorkoutForUser(user.id, supabase);
+  if (activeWorkout) return activeWorkout;
+
   const source = await getWorkout(sourceId);
 
   const { data: workout, error } = await supabase
@@ -1014,23 +1043,7 @@ export async function updateSetRestSeconds(
 export async function getActiveWorkout(): Promise<Workout | null> {
   const user = await requireUser();
   const supabase = await createClient();
-  const select = await resolveWorkoutSelect(supabase);
-
-  const { data, error } = await supabase
-    .from("workouts")
-    .select(select)
-    .eq("user_id", user.id)
-    .is("completed_at", null)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    if (isMissingSchemaError(error)) return null;
-    throw error;
-  }
-
-  return data ? sortWorkoutData(data as unknown as Workout) : null;
+  return getActiveWorkoutForUser(user.id, supabase);
 }
 
 export async function deleteWorkoutSet(setId: string, workoutId: string) {
