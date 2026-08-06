@@ -82,23 +82,38 @@ export async function processRecurrenceRulesForUser(
   for (const row of rules) {
     const rule = row as RecurrenceRule;
 
-    const { data: openTodo } = await supabase
-      .from("tasks")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("recurrence_rule_id", rule.id)
-      .eq("status", "todo")
-      .limit(1)
-      .maybeSingle();
-
-    if (openTodo) continue;
-
     let dueDate = rule.next_occurrence ?? today;
     if (dueDate < today) {
       dueDate = today;
     }
 
     if (dueDate > today) continue;
+
+    const { data: openTodos, error: openTodoError } = await supabase
+      .from("tasks")
+      .select("id, due_date, created_at")
+      .eq("user_id", userId)
+      .eq("recurrence_rule_id", rule.id)
+      .eq("status", "todo");
+
+    if (openTodoError) throw openTodoError;
+
+    const hasCurrentInstance = (openTodos ?? []).some(
+      (task) =>
+        task.due_date === dueDate ||
+        (!task.due_date && task.created_at?.startsWith(dueDate)),
+    );
+
+    if (hasCurrentInstance) {
+      if (rule.next_occurrence !== dueDate) {
+        await supabase
+          .from("recurrence_rules")
+          .update({ next_occurrence: dueDate })
+          .eq("id", rule.id)
+          .eq("user_id", userId);
+      }
+      continue;
+    }
 
     const wasCreated = await ensureRecurrenceTask(
       supabase,
