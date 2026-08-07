@@ -77,6 +77,22 @@ function revalidateGymPaths(workoutId?: string) {
   revalidatePath("/gym/plates");
 }
 
+async function discardIncompleteWorkout(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  workoutId: string,
+) {
+  const { error } = await supabase
+    .from("workouts")
+    .delete()
+    .eq("id", workoutId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Failed to clean up incomplete workout:", error.message);
+  }
+}
+
 function sortWorkoutData<T extends Workout>(workout: T): T {
   const normalized = normalizeWorkout(workout);
   if (normalized.workout_exercises) {
@@ -163,7 +179,7 @@ export async function getWorkoutCalendar(monthKey?: string) {
   return buildWorkoutCalendarMonth(workouts, month);
 }
 
-export async function getWorkout(id: string) {
+export async function getWorkout(id: string): Promise<Workout | null> {
   const user = await requireUser();
   const supabase = await createClient();
   const select = await resolveWorkoutSelect(supabase);
@@ -173,7 +189,7 @@ export async function getWorkout(id: string) {
     .select(select)
     .eq("id", id)
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   if (error && isMissingSchemaError(error)) {
     cachedUsesFullGymSchema = false;
@@ -182,9 +198,10 @@ export async function getWorkout(id: string) {
       .select(LEGACY_WORKOUT_SELECT)
       .eq("id", id)
       .eq("user_id", user.id)
-      .single());
+      .maybeSingle());
   }
   if (error) throw error;
+  if (!data) return null;
   return sortWorkoutData(data as unknown as Workout);
 }
 
@@ -667,10 +684,15 @@ export async function createWorkout(formData: FormData) {
 
   if (error) throw error;
 
-  if (parsed.duplicate_from_workout_id) {
-    await copyWorkoutExercises(user.id, parsed.duplicate_from_workout_id, workout.id, true);
-  } else if (parsed.template_id) {
-    await copyTemplateExercises(user.id, parsed.template_id, workout.id);
+  try {
+    if (parsed.duplicate_from_workout_id) {
+      await copyWorkoutExercises(user.id, parsed.duplicate_from_workout_id, workout.id, true);
+    } else if (parsed.template_id) {
+      await copyTemplateExercises(user.id, parsed.template_id, workout.id);
+    }
+  } catch (copyError) {
+    await discardIncompleteWorkout(supabase, user.id, workout.id);
+    throw copyError;
   }
 
   revalidateGymPaths(workout.id);
@@ -684,7 +706,7 @@ async function copyTemplateExercises(
 ) {
   const supabase = await createClient();
   const template = await getTemplate(templateId);
-  if (!template) return;
+  if (!template) throw new Error("Template not found");
 
   const exercises = template.workout_template_exercises ?? template.exercises ?? [];
   for (let i = 0; i < exercises.length; i++) {
@@ -705,7 +727,8 @@ async function copyTemplateExercises(
       .select()
       .single();
 
-    if (exError || !newEx) continue;
+    if (exError) throw exError;
+    if (!newEx) throw new Error(`Failed to copy template exercise: ${exerciseName}`);
 
     const setCount = Math.max(1, ex.default_sets ?? 3);
     const lastPerf = await getLastExercisePerformance(exerciseName);
@@ -714,7 +737,7 @@ async function copyTemplateExercises(
     for (let setNum = 1; setNum <= setCount; setNum++) {
       const lastSet = lastSets.find((s) => s.set_number === setNum) ??
         lastSets[setNum - 1];
-      await supabase.from("workout_sets").insert({
+      const { error: setError } = await supabase.from("workout_sets").insert({
         user_id: userId,
         workout_id: workoutId,
         workout_exercise_id: newEx.id,
@@ -726,6 +749,7 @@ async function copyTemplateExercises(
         is_warmup: false,
         sort_order: setNum,
       });
+      if (setError) throw setError;
     }
   }
 }
@@ -738,7 +762,7 @@ async function copyWorkoutExercises(
 ) {
   const supabase = await createClient();
   const source = await getWorkout(sourceWorkoutId);
-  if (!source) return;
+  if (!source) throw new Error("Source workout not found");
 
   const exercises = source.workout_exercises?.length
     ? source.workout_exercises
@@ -747,7 +771,7 @@ async function copyWorkoutExercises(
   if (exercises.length === 0 && source.workout_sets?.length) {
     const names = [...new Set(source.workout_sets.map((s) => s.exercise_name))];
     for (let i = 0; i < names.length; i++) {
-      const { data: ex } = await supabase
+      const { data: ex, error: exError } = await supabase
         .from("workout_exercises")
         .insert({
           user_id: userId,
@@ -758,10 +782,13 @@ async function copyWorkoutExercises(
         .select()
         .single();
 
+      if (exError) throw exError;
+      if (!ex) throw new Error(`Failed to copy workout exercise: ${names[i]}`);
+
       if (copySets && ex) {
         const sets = source.workout_sets!.filter((s) => s.exercise_name === names[i]);
         for (const set of sets) {
-          await supabase.from("workout_sets").insert({
+          const { error: setError } = await supabase.from("workout_sets").insert({
             user_id: userId,
             workout_id: targetWorkoutId,
             workout_exercise_id: ex.id,
@@ -774,6 +801,7 @@ async function copyWorkoutExercises(
             is_warmup: set.is_warmup,
             sort_order: set.set_number,
           });
+          if (setError) throw setError;
         }
       }
     }
@@ -781,7 +809,7 @@ async function copyWorkoutExercises(
   }
 
   for (const ex of exercises) {
-    const { data: newEx } = await supabase
+    const { data: newEx, error: exError } = await supabase
       .from("workout_exercises")
       .insert({
         user_id: userId,
@@ -795,9 +823,12 @@ async function copyWorkoutExercises(
       .select()
       .single();
 
+    if (exError) throw exError;
+    if (!newEx) throw new Error(`Failed to copy workout exercise: ${ex.exercise_name}`);
+
     if (copySets && newEx && ex.workout_sets?.length) {
       for (const set of ex.workout_sets) {
-        await supabase.from("workout_sets").insert({
+        const { error: setError } = await supabase.from("workout_sets").insert({
           user_id: userId,
           workout_id: targetWorkoutId,
           workout_exercise_id: newEx.id,
@@ -812,6 +843,7 @@ async function copyWorkoutExercises(
           sort_order: set.set_number,
           notes: set.notes,
         });
+        if (setError) throw setError;
       }
     }
   }
@@ -824,6 +856,7 @@ export async function duplicateWorkoutAsNew(
   const user = await requireUser();
   const supabase = await createClient();
   const source = await getWorkout(sourceId);
+  if (!source) throw new Error("Source workout not found");
 
   const { data: workout, error } = await supabase
     .from("workouts")
@@ -839,7 +872,12 @@ export async function duplicateWorkoutAsNew(
     .single();
 
   if (error) throw error;
-  await copyWorkoutExercises(user.id, sourceId, workout.id, options.copySets ?? true);
+  try {
+    await copyWorkoutExercises(user.id, sourceId, workout.id, options.copySets ?? true);
+  } catch (copyError) {
+    await discardIncompleteWorkout(supabase, user.id, workout.id);
+    throw copyError;
+  }
   revalidateGymPaths(workout.id);
   return workout;
 }
@@ -986,6 +1024,7 @@ export async function updateWorkoutSet(formData: FormData) {
   if (error) throw error;
 
   const workout = await getWorkout(workoutId);
+  if (!workout) throw new Error("Workout not found");
   if (workout.completed_at) {
     await rebuildPRsForWorkout(user.id, workout);
   }
@@ -1137,6 +1176,7 @@ export async function completeWorkout(formData: FormData) {
 
   const endedAt = new Date().toISOString();
   const workout = await getWorkout(parsed.workout_id);
+  if (!workout) throw new Error("Workout not found");
   const durationSeconds = workoutDuration(workout.started_at, endedAt);
 
   const fullUpdate = {
@@ -1181,6 +1221,7 @@ export async function completeWorkout(formData: FormData) {
   }
 
   const updated = await getWorkout(parsed.workout_id);
+  if (!updated) throw new Error("Workout not found");
   await rebuildPRsForWorkout(user.id, updated);
 
   revalidateGymPaths(parsed.workout_id);
