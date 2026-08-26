@@ -87,6 +87,7 @@ export function buildPortfolioSummary(
   let totalAvailableCredit = 0;
   let totalMinimumDue = 0;
   let paidThisMonth = 0;
+  let remainingDueThisMonth = 0;
   let dueSoonCount = 0;
   let highUtilizationCount = 0;
   let nearLimitCount = 0;
@@ -104,6 +105,7 @@ export function buildPortfolioSummary(
 
     if (entry.card.card_status === "active" && entry.effectiveBalance > 0) {
       totalMinimumDue += Number(entry.card.minimum_payment ?? 0);
+      remainingDueThisMonth += entry.remainingMinimum;
     }
 
     if (entry.isDueSoon) dueSoonCount += 1;
@@ -113,8 +115,6 @@ export function buildPortfolioSummary(
 
   const overallUtilization =
     totalLimits > 0 ? Math.min(1, totalDebt / totalLimits) : null;
-
-  const remainingDueThisMonth = Math.max(0, totalMinimumDue - paidThisMonth);
 
   return {
     totalDebt,
