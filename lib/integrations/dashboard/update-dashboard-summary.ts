@@ -1,9 +1,10 @@
 import {
-  endOfDay,
+  addDays,
   format,
   startOfDay,
 } from "date-fns";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { calendarEventOverlapsRange } from "@/lib/calendar/events";
 import { filterCreditCards } from "@/lib/finance/cards";
 import {
   buildPortfolioSummary,
@@ -112,6 +113,8 @@ export async function refreshDashboardSummary(
   const supabase = supabaseClient ?? (await createAdminClient());
   const today = format(new Date(), "yyyy-MM-dd");
   const now = new Date();
+  const todayStart = startOfDay(now);
+  const tomorrowStart = addDays(todayStart, 1);
 
   const [
     healthRes,
@@ -178,8 +181,8 @@ export async function refreshDashboardSummary(
       .from("calendar_events")
       .select("id, title, start_time, end_time, all_day, location")
       .eq("user_id", userId)
-      .gte("start_time", startOfDay(now).toISOString())
-      .lte("start_time", endOfDay(now).toISOString())
+      .lt("start_time", tomorrowStart.toISOString())
+      .gt("end_time", todayStart.toISOString())
       .order("start_time")
       .limit(10),
     supabase.from("integrations").select("*").eq("user_id", userId),
@@ -250,7 +253,9 @@ export async function refreshDashboardSummary(
   const portfolio =
     enrichedCards.length > 0 ? buildPortfolioSummary(enrichedCards) : null;
 
-  const calendarEvents = calendarRes.data ?? [];
+  const calendarEvents = (calendarRes.data ?? []).filter((event) =>
+    calendarEventOverlapsRange(event, todayStart, tomorrowStart),
+  );
   const integrations = integrationsRes.data ?? [];
   const syncLogs = syncLogsRes.data ?? [];
 

@@ -1,11 +1,12 @@
 "use server";
 
-import { format, subDays, startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
+import { addDays, format, subDays, startOfDay, startOfWeek } from "date-fns";
 import { requireUser } from "@/lib/auth";
 import {
   createDefaultDashboardSummary,
   refreshDashboardSummary,
 } from "@/lib/integrations/dashboard/update-dashboard-summary";
+import { calendarEventOverlapsRange } from "@/lib/calendar/events";
 import { createClient } from "@/lib/supabase/server";
 import type { DashboardSummary } from "@/types";
 
@@ -50,18 +51,20 @@ export async function getCalendarEvents(limit = 10) {
   const user = await requireUser();
   const supabase = await createClient();
   const now = new Date();
+  const start = startOfDay(now);
+  const end = addDays(start, 1);
 
   const { data, error } = await supabase
     .from("calendar_events")
     .select("*")
     .eq("user_id", user.id)
-    .gte("start_time", startOfDay(now).toISOString())
-    .lte("start_time", endOfDay(now).toISOString())
+    .lt("start_time", end.toISOString())
+    .gt("end_time", start.toISOString())
     .order("start_time")
     .limit(limit);
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).filter((event) => calendarEventOverlapsRange(event, start, end));
 }
 
 export async function getUpcomingCalendarEvents(limit = 10) {
@@ -85,18 +88,18 @@ export async function getCalendarWeekEvents(referenceDate = new Date()) {
   const user = await requireUser();
   const supabase = await createClient();
   const start = startOfWeek(referenceDate, { weekStartsOn: 1 });
-  const end = endOfWeek(referenceDate, { weekStartsOn: 1 });
+  const end = addDays(start, 7);
 
   const { data, error } = await supabase
     .from("calendar_events")
     .select("id, title, start_time, end_time, all_day, location")
     .eq("user_id", user.id)
-    .gte("start_time", start.toISOString())
-    .lte("start_time", end.toISOString())
+    .lt("start_time", end.toISOString())
+    .gt("end_time", start.toISOString())
     .order("start_time");
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).filter((event) => calendarEventOverlapsRange(event, start, end));
 }
 
 export async function getHealthSnapshots(days = 30) {
