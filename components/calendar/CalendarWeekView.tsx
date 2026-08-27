@@ -1,25 +1,37 @@
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
+import { addDays, format, startOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
+import { calendarEventOverlapsRange } from "@/lib/calendar/events";
 import { cn } from "@/lib/utils";
 
 interface WeekEvent {
   id: string;
   title: string;
   start_time: string;
+  end_time: string;
   all_day: boolean;
+}
+
+function eventLabelForDay(event: WeekEvent, day: Date): string {
+  if (event.all_day) return event.title;
+
+  const start = new Date(event.start_time);
+  return isSameDay(start, day)
+    ? `${format(start, "h:mm")} ${event.title}`
+    : event.title;
 }
 
 export function CalendarWeekView({ events }: { events: WeekEvent[] }) {
   const now = new Date();
   const start = startOfWeek(now, { weekStartsOn: 1 });
-  const end = endOfWeek(now, { weekStartsOn: 1 });
+  const end = addDays(start, 6);
   const days = eachDayOfInterval({ start, end });
 
   return (
     <div className="grid grid-cols-7 gap-1">
       {days.map((day) => {
+        const nextDay = addDays(day, 1);
         const dayEvents = events.filter((event) =>
-          isSameDay(new Date(event.start_time), day),
+          calendarEventOverlapsRange(event, day, nextDay),
         );
         const isToday = isSameDay(day, now);
 
@@ -50,9 +62,7 @@ export function CalendarWeekView({ events }: { events: WeekEvent[] }) {
                     className="truncate text-[10px] text-muted-foreground"
                     title={event.title}
                   >
-                    {event.all_day
-                      ? event.title
-                      : `${format(new Date(event.start_time), "h:mm")} ${event.title}`}
+                    {eventLabelForDay(event, day)}
                   </p>
                 ))}
                 {dayEvents.length > 2 && (
