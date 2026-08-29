@@ -4,6 +4,7 @@ import {
   getOuraClientCredentials,
   hasOuraOAuthEnv,
 } from "@/lib/env";
+import { isReauthError } from "@/lib/integrations/types";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Integration } from "@/types";
 
@@ -12,6 +13,10 @@ export { hasOuraOAuthEnv as isOuraOAuthConfigured };
 const OURA_AUTHORIZE = "https://cloud.ouraring.com/oauth/authorize";
 const OURA_TOKEN = "https://api.ouraring.com/oauth/token";
 const OURA_SCOPES = ["email", "personal", "daily", "heartrate", "workout"];
+const TOKEN_REFRESH_BUFFER_MS = 60_000;
+const TOKEN_PERSIST_RETRIES = 3;
+const CONCURRENT_REFRESH_RETRIES = 3;
+const CONCURRENT_REFRESH_DELAY_MS = 250;
 
 interface OuraTokenResponse {
   token_type: string;
@@ -101,6 +106,87 @@ function decryptStoredToken(stored: string): string {
   return decryptIntegrationToken(stored);
 }
 
+function isAccessTokenFresh(integration: Integration): boolean {
+  if (!integration.access_token_enc || !integration.token_expires_at) {
+    return false;
+  }
+
+  return (
+    new Date(integration.token_expires_at).getTime() >
+    Date.now() + TOKEN_REFRESH_BUFFER_MS
+  );
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function loadLatestIntegration(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  integrationId: string,
+): Promise<Integration | null> {
+  const { data, error } = await db
+    .from("integrations")
+    .select("*")
+    .eq("id", integrationId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data as Integration | null) ?? null;
+}
+
+async function adoptConcurrentRefresh(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  original: Integration,
+): Promise<string | null> {
+  for (let attempt = 0; attempt < CONCURRENT_REFRESH_RETRIES; attempt++) {
+    const latest = await loadLatestIntegration(db, original.id);
+    if (
+      latest &&
+      latest.refresh_token_enc !== original.refresh_token_enc &&
+      isAccessTokenFresh(latest)
+    ) {
+      return decryptStoredToken(latest.access_token_enc!);
+    }
+
+    if (attempt < CONCURRENT_REFRESH_RETRIES - 1) {
+      await wait(CONCURRENT_REFRESH_DELAY_MS);
+    }
+  }
+
+  return null;
+}
+
+async function persistRefreshedTokens(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  integration: Integration,
+  tokens: Awaited<ReturnType<typeof refreshOuraAccessToken>>,
+): Promise<boolean> {
+  const update = {
+    access_token_enc: encryptTokenSafe(tokens.accessToken),
+    refresh_token_enc: encryptTokenSafe(tokens.refreshToken),
+    token_expires_at: tokens.expiresAt,
+    status: "active",
+    updated_at: new Date().toISOString(),
+  };
+
+  for (let attempt = 0; attempt < TOKEN_PERSIST_RETRIES; attempt++) {
+    const { data, error } = await db
+      .from("integrations")
+      .update(update)
+      .eq("id", integration.id)
+      .eq("refresh_token_enc", integration.refresh_token_enc)
+      .select("id")
+      .maybeSingle();
+
+    if (!error) return Boolean(data);
+    if (attempt === TOKEN_PERSIST_RETRIES - 1) throw error;
+    await wait(CONCURRENT_REFRESH_DELAY_MS);
+  }
+
+  return false;
+}
+
 export async function getOuraAccessToken(
   integration: Integration,
 ): Promise<string> {
@@ -118,25 +204,34 @@ export async function getOuraAccessToken(
     ? new Date(integration.token_expires_at).getTime()
     : 0;
 
-  if (integration.access_token_enc && expiresAt > Date.now() + 60_000) {
+  if (
+    integration.access_token_enc &&
+    expiresAt > Date.now() + TOKEN_REFRESH_BUFFER_MS
+  ) {
     return decryptStoredToken(integration.access_token_enc);
   }
 
-  const tokens = await refreshOuraAccessToken(refreshToken);
   // Always persist refreshed tokens with the service role (works from cron + manual sync).
   const db = await createServiceClient();
-  const { error } = await db
-    .from("integrations")
-    .update({
-      access_token_enc: encryptTokenSafe(tokens.accessToken),
-      refresh_token_enc: encryptTokenSafe(tokens.refreshToken),
-      token_expires_at: tokens.expiresAt,
-      status: "active",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", integration.id);
 
-  if (error) throw error;
+  let tokens: Awaited<ReturnType<typeof refreshOuraAccessToken>>;
+  try {
+    tokens = await refreshOuraAccessToken(refreshToken);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isReauthError(message)) {
+      const adoptedToken = await adoptConcurrentRefresh(db, integration);
+      if (adoptedToken) return adoptedToken;
+    }
+    throw error;
+  }
+
+  const persisted = await persistRefreshedTokens(db, integration, tokens);
+  if (!persisted) {
+    const adoptedToken = await adoptConcurrentRefresh(db, integration);
+    if (adoptedToken) return adoptedToken;
+    throw new Error("Oura token refresh was superseded by another sync.");
+  }
 
   return tokens.accessToken;
 }
