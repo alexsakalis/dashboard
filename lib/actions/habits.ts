@@ -64,29 +64,40 @@ export async function toggleHabit(habitId: string) {
   const supabase = await createClient();
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("habit_completions")
     .select("id")
+    .eq("user_id", user.id)
     .eq("habit_id", habitId)
     .eq("completed_date", today)
     .maybeSingle();
 
+  if (existingError) throw existingError;
+
   if (existing) {
-    await supabase.from("habit_completions").delete().eq("id", existing.id);
+    const { error: deleteError } = await supabase
+      .from("habit_completions")
+      .delete()
+      .eq("id", existing.id)
+      .eq("user_id", user.id);
+    if (deleteError) throw deleteError;
   } else {
-    const { data: habit } = await supabase
+    const { data: habit, error: habitError } = await supabase
       .from("habits")
       .select("*")
       .eq("id", habitId)
-      .single();
+      .eq("user_id", user.id)
+      .maybeSingle();
 
+    if (habitError) throw habitError;
     if (!habit) throw new Error("Habit not found");
 
-    await supabase.from("habit_completions").insert({
+    const { error: insertError } = await supabase.from("habit_completions").insert({
       user_id: user.id,
       habit_id: habitId,
       completed_date: today,
     });
+    if (insertError) throw insertError;
 
     const streak = await calculateHabitStreak(user.id, habitId);
     await awardHabitPoints(
