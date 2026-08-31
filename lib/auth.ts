@@ -86,8 +86,12 @@ export async function requireUser() {
 }
 
 export function isEmailAllowed(email: string): boolean {
-  const allowlist = process.env.ALLOWED_EMAILS;
-  if (!allowlist) return true;
-  const allowed = allowlist.split(",").map((e) => e.trim().toLowerCase());
-  return allowed.includes(email.toLowerCase());
+  const allowed = (process.env.ALLOWED_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (allowed.length === 0) return false;
+
+  return allowed.includes(email.trim().toLowerCase());
 }
