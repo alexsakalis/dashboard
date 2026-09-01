@@ -48,6 +48,7 @@ import type {
 } from "@/types/gym";
 
 let cachedUsesFullGymSchema: boolean | null = null;
+const WORKOUT_EXPORT_PAGE_SIZE = 1000;
 
 async function resolveWorkoutSelect(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -561,7 +562,41 @@ export async function getGymAnalytics() {
 }
 
 export async function exportWorkoutsCsv(): Promise<string> {
-  const workouts = await getWorkouts({ limit: 500, completedOnly: true });
+  const user = await requireUser();
+  const supabase = await createClient();
+  let select = await resolveWorkoutSelect(supabase);
+  const workouts: Workout[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + WORKOUT_EXPORT_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("workouts")
+      .select(select)
+      .eq("user_id", user.id)
+      .not("completed_at", "is", null)
+      .order("started_at", { ascending: false })
+      .range(from, to);
+
+    if (error && isMissingSchemaError(error) && select !== LEGACY_WORKOUT_SELECT) {
+      cachedUsesFullGymSchema = false;
+      select = LEGACY_WORKOUT_SELECT;
+      workouts.length = 0;
+      from = 0;
+      continue;
+    }
+
+    if (error) throw error;
+
+    const page = data ?? [];
+    workouts.push(
+      ...page.map((workout) => sortWorkoutData(workout as unknown as Workout)),
+    );
+
+    if (page.length < WORKOUT_EXPORT_PAGE_SIZE) break;
+    from += WORKOUT_EXPORT_PAGE_SIZE;
+  }
+
   const { workoutsToCsv } = await import("@/lib/gym/export");
   return workoutsToCsv(workouts);
 }
