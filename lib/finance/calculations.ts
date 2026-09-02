@@ -102,6 +102,25 @@ export function computeOpeningBalanceForTarget(
   return desiredEffectiveBalance + sumCompletedPayments(payments);
 }
 
+export function hasEffectiveBalanceAdjustment(
+  desiredEffectiveBalance: number | null | undefined,
+  existingOpeningBalance: number,
+  payments: CreditCardPayment[],
+): desiredEffectiveBalance is number {
+  if (
+    desiredEffectiveBalance === null ||
+    desiredEffectiveBalance === undefined
+  ) {
+    return false;
+  }
+
+  const currentEffectiveBalance = getEffectiveBalance(
+    existingOpeningBalance,
+    payments,
+  );
+  return Math.abs(desiredEffectiveBalance - currentEffectiveBalance) >= 0.005;
+}
+
 export function sumPaymentsInRange(
   payments: CreditCardPayment[],
   start: Date,
