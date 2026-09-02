@@ -11,7 +11,11 @@ import {
   enrichCreditCards,
   toLegacySummary,
 } from "@/lib/finance/enrich";
-import { getEffectiveBalance, computeOpeningBalanceForTarget } from "@/lib/finance/calculations";
+import {
+  computeOpeningBalanceForTarget,
+  getEffectiveBalance,
+  hasEffectiveBalanceAdjustment,
+} from "@/lib/finance/calculations";
 import {
   creditCardFormSchema,
   creditCardUpdateSchema,
@@ -307,8 +311,11 @@ export async function updateCreditCard(cardId: string, formData: FormData) {
   let openingBalance = parsed.opening_balance ?? existing.card.opening_balance;
 
   if (
-    parsed.effective_balance !== null &&
-    parsed.effective_balance !== undefined
+    hasEffectiveBalanceAdjustment(
+      parsed.effective_balance,
+      existing.card.opening_balance,
+      existing.payments,
+    )
   ) {
     openingBalance = computeOpeningBalanceForTarget(
       parsed.effective_balance,
