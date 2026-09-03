@@ -138,7 +138,7 @@ export async function getWorkoutsForMonth(month: Date): Promise<Workout[]> {
   const rangeStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const rangeEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("workouts")
     .select(select)
     .eq("user_id", user.id)
@@ -146,10 +146,17 @@ export async function getWorkoutsForMonth(month: Date): Promise<Workout[]> {
     .lte("started_at", rangeEnd.toISOString())
     .order("started_at", { ascending: true });
 
-  if (error) {
-    if (isMissingSchemaError(error)) return [];
-    throw error;
+  if (error && isMissingSchemaError(error)) {
+    cachedUsesFullGymSchema = false;
+    ({ data, error } = await supabase
+      .from("workouts")
+      .select(LEGACY_WORKOUT_SELECT)
+      .eq("user_id", user.id)
+      .gte("started_at", rangeStart.toISOString())
+      .lte("started_at", rangeEnd.toISOString())
+      .order("started_at", { ascending: true }));
   }
+  if (error) throw error;
 
   return (data ?? []).map((w) => sortWorkoutData(w as unknown as Workout));
 }
