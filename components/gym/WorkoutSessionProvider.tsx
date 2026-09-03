@@ -134,7 +134,7 @@ export function WorkoutSessionProvider({
     [workoutId],
   );
 
-  const finishRestTimer = useCallback(
+  const persistCurrentRestTimer = useCallback(
     (completed: boolean) => {
       const endAt = restEndAtRef.current;
       const startedAtMs = restStartedAtRef.current;
@@ -143,7 +143,6 @@ export function WorkoutSessionProvider({
       restEndAtRef.current = null;
       restStartedAtRef.current = null;
       restTargetRef.current = null;
-      setRestTimer(null);
 
       if (!current || !startedAtMs) return;
 
@@ -166,9 +165,18 @@ export function WorkoutSessionProvider({
     [persistRestSeconds],
   );
 
+  const finishRestTimer = useCallback(
+    (completed: boolean) => {
+      persistCurrentRestTimer(completed);
+      setRestTimer(null);
+    },
+    [persistCurrentRestTimer],
+  );
+
   const startRestTimer = useCallback(
     ({ setId, exerciseName, setNumber, durationSeconds }: StartRestTimerInput) => {
       void requestNotificationPermission();
+      finishRestTimer(false);
 
       const totalSeconds = durationSeconds ?? defaultRestSeconds;
       const now = Date.now();
@@ -184,7 +192,7 @@ export function WorkoutSessionProvider({
         remainingSeconds: totalSeconds,
       });
     },
-    [defaultRestSeconds],
+    [defaultRestSeconds, finishRestTimer],
   );
 
   const skipRestTimer = useCallback(() => {
@@ -289,20 +297,24 @@ export function WorkoutSessionProvider({
 
   useEffect(() => {
     if (isActive) return;
-    restEndAtRef.current = null;
-    restStartedAtRef.current = null;
-    setRestTimer(null);
+    persistCurrentRestTimer(false);
     if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
       navigator.mediaSession.metadata = null;
       navigator.mediaSession.playbackState = "none";
     }
-  }, [isActive]);
+  }, [isActive, persistCurrentRestTimer]);
+
+  useEffect(() => {
+    return () => {
+      persistCurrentRestTimer(false);
+    };
+  }, [persistCurrentRestTimer]);
 
   return (
     <WorkoutSessionContext.Provider
       value={{
         elapsedSeconds,
-        restTimer,
+        restTimer: isActive ? restTimer : null,
         defaultRestSeconds,
         existingPRs,
         startRestTimer,
