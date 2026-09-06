@@ -27,14 +27,14 @@ import { PreviousPerformanceHint } from "@/components/gym/PreviousPerformanceHin
 
 interface StartWorkoutSheetProps {
   defaultSplit?: WorkoutSplit;
-  lastReference?: LastWorkoutReference | null;
+  lastReferences?: Partial<Record<WorkoutSplit, LastWorkoutReference | null>>;
   duplicateFromId?: string;
   triggerLabel?: string;
 }
 
 export function StartWorkoutSheet({
   defaultSplit,
-  lastReference,
+  lastReferences,
   duplicateFromId,
   triggerLabel = "Start",
 }: StartWorkoutSheetProps) {
@@ -42,6 +42,7 @@ export function StartWorkoutSheet({
   const [split, setSplit] = useState<WorkoutSplit>(defaultSplit ?? "push");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const lastReference = lastReferences?.[split] ?? null;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

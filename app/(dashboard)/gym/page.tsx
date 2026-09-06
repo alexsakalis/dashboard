@@ -15,8 +15,9 @@ import {
   RecentPRsList,
 } from "@/components/gym/GymDashboardStats";
 import { TopProgressingList } from "@/components/gym/TopProgressingList";
-import { SPLIT_LABELS } from "@/lib/gym/constants";
+import { SPLIT_LABELS, WORKOUT_SPLITS } from "@/lib/gym/constants";
 import { Card } from "@/components/ui/card";
+import type { LastWorkoutReference, WorkoutSplit } from "@/types/gym";
 
 async function GymDashboardContent() {
   const [summary, activeWorkout] = await Promise.all([
@@ -24,7 +25,15 @@ async function GymDashboardContent() {
     getActiveWorkout(),
   ]);
   const insight = await getGymHealthInsight(summary);
-  const lastRef = await getLastWorkoutReference(summary.suggestedSplit);
+  const lastReferenceEntries = await Promise.all(
+    WORKOUT_SPLITS.map(async (split) => [
+      split,
+      await getLastWorkoutReference(split),
+    ] as const),
+  );
+  const lastReferences = Object.fromEntries(lastReferenceEntries) as Partial<
+    Record<WorkoutSplit, LastWorkoutReference | null>
+  >;
 
   const navLinks = [
     { href: "/gym/calendar", label: "Calendar", icon: CalendarDays },
@@ -51,7 +60,7 @@ async function GymDashboardContent() {
           <h2 className="section-label">Quick start</h2>
           <StartWorkoutSheet
             defaultSplit={summary.suggestedSplit}
-            lastReference={lastRef}
+            lastReferences={lastReferences}
           />
         </div>
         <p className="text-xs text-muted-foreground">
