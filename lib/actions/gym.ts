@@ -1178,6 +1178,7 @@ export async function completeWorkout(formData: FormData) {
       },
       { onConflict: "user_id,logged_date,source" },
     );
+    if (bodyWeightError) throw bodyWeightError;
   }
 
   const updated = await getWorkout(parsed.workout_id);
