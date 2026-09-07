@@ -1135,8 +1135,13 @@ export async function completeWorkout(formData: FormData) {
     body_weight: formData.get("body_weight"),
   });
 
-  const endedAt = new Date().toISOString();
   const workout = await getWorkout(parsed.workout_id);
+  if (workout.completed_at) {
+    revalidateGymPaths(parsed.workout_id);
+    return;
+  }
+
+  const endedAt = new Date().toISOString();
   const durationSeconds = workoutDuration(workout.started_at, endedAt);
 
   const fullUpdate = {
@@ -1148,24 +1153,34 @@ export async function completeWorkout(formData: FormData) {
     duration_seconds: durationSeconds,
   };
 
-  let { error } = await supabase
+  let { data: completedWorkout, error } = await supabase
     .from("workouts")
     .update(fullUpdate)
     .eq("id", parsed.workout_id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .is("completed_at", null)
+    .select("id")
+    .maybeSingle();
 
   if (error && isMissingSchemaError(error)) {
-    ({ error } = await supabase
+    ({ data: completedWorkout, error } = await supabase
       .from("workouts")
       .update({
         completed_at: endedAt,
         notes: parsed.notes ?? workout.notes,
       })
       .eq("id", parsed.workout_id)
-      .eq("user_id", user.id));
+      .eq("user_id", user.id)
+      .is("completed_at", null)
+      .select("id")
+      .maybeSingle());
   }
 
   if (error) throw error;
+  if (!completedWorkout) {
+    revalidateGymPaths(parsed.workout_id);
+    return;
+  }
 
   if (parsed.body_weight) {
     const { error: bodyWeightError } = await supabase.from("body_weight_logs").upsert(
