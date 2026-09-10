@@ -341,6 +341,25 @@ export async function getLatestBodyWeight(): Promise<BodyWeightLog | null> {
   return logs[0] ?? null;
 }
 
+function normalizeWorkoutTemplateRow(
+  template: Record<string, unknown>,
+): WorkoutTemplate {
+  const normalizedExercises = Array.isArray(template.workout_template_exercises)
+    ? (template.workout_template_exercises as WorkoutTemplateExercise[])
+    : [];
+  const legacyExercises = Array.isArray(template.exercises)
+    ? (template.exercises as WorkoutTemplateExercise[])
+    : [];
+  const exercises =
+    normalizedExercises.length > 0 ? normalizedExercises : legacyExercises;
+
+  return {
+    ...template,
+    exercises,
+    workout_template_exercises: exercises,
+  } as WorkoutTemplate;
+}
+
 export async function getWorkoutTemplates(): Promise<WorkoutTemplate[]> {
   const user = await requireUser();
   const supabase = await createClient();
@@ -362,10 +381,9 @@ export async function getWorkoutTemplates(): Promise<WorkoutTemplate[]> {
   }
   if (error) throw error;
 
-  return (data ?? []).map((t) => ({
-    ...t,
-    exercises: (t.workout_template_exercises ?? t.exercises ?? []) as WorkoutTemplateExercise[],
-  })) as WorkoutTemplate[];
+  return (data ?? []).map((t) =>
+    normalizeWorkoutTemplateRow(t as Record<string, unknown>),
+  );
 }
 
 export async function getTemplate(id: string): Promise<WorkoutTemplate | null> {
@@ -390,10 +408,7 @@ export async function getTemplate(id: string): Promise<WorkoutTemplate | null> {
   if (error) throw error;
   if (!data) return null;
 
-  return {
-    ...data,
-    exercises: (data.workout_template_exercises ?? data.exercises ?? []) as WorkoutTemplateExercise[],
-  } as WorkoutTemplate;
+  return normalizeWorkoutTemplateRow(data as Record<string, unknown>);
 }
 
 export async function searchExerciseLibrary(
