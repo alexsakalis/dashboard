@@ -137,13 +137,16 @@ export async function getWorkoutsForMonth(month: Date): Promise<Workout[]> {
   const monthEnd = endOfMonth(month);
   const rangeStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const rangeEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const rangeStartIso = rangeStart.toISOString();
+  const rangeEndIso = rangeEnd.toISOString();
 
   const { data, error } = await supabase
     .from("workouts")
     .select(select)
     .eq("user_id", user.id)
-    .gte("started_at", rangeStart.toISOString())
-    .lte("started_at", rangeEnd.toISOString())
+    .or(
+      `and(started_at.gte.${rangeStartIso},started_at.lte.${rangeEndIso}),and(completed_at.gte.${rangeStartIso},completed_at.lte.${rangeEndIso})`,
+    )
     .order("started_at", { ascending: true });
 
   if (error) {
