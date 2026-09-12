@@ -36,7 +36,6 @@ import {
 } from "@/lib/gym/schema-compat";
 import type {
   BodyWeightLog,
-  ExerciseLibraryEntry,
   ExercisePersonalRecord,
   GymPreferences,
   LastWorkoutReference,
@@ -1168,7 +1167,7 @@ export async function completeWorkout(formData: FormData) {
   if (error) throw error;
 
   if (parsed.body_weight) {
-    const { error: bodyWeightError } = await supabase.from("body_weight_logs").upsert(
+    await supabase.from("body_weight_logs").upsert(
       {
         user_id: user.id,
         logged_date: format(new Date(), "yyyy-MM-dd"),

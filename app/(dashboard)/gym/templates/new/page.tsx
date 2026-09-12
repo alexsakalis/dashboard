@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TemplateForm } from "@/components/gym/TemplateForm";
 

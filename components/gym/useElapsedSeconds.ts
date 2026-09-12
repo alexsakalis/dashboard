@@ -2,12 +2,18 @@
 
 import { useEffect, useState } from "react";
 
+function getElapsedSeconds(startedAt: string | null | undefined): number {
+  if (!startedAt) return 0;
+  const startMs = new Date(startedAt).getTime();
+  if (!Number.isFinite(startMs)) return 0;
+  return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+}
+
 export function useElapsedSeconds(startedAt: string | null | undefined): number {
-  const [elapsed, setElapsed] = useState(0);
+  const [elapsed, setElapsed] = useState(() => getElapsedSeconds(startedAt));
 
   useEffect(() => {
     if (!startedAt) {
-      setElapsed(0);
       return;
     }
 
@@ -23,5 +29,5 @@ export function useElapsedSeconds(startedAt: string | null | undefined): number 
     return () => window.clearInterval(id);
   }, [startedAt]);
 
-  return elapsed;
+  return startedAt ? elapsed : 0;
 }

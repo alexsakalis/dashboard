@@ -79,6 +79,6 @@ export function calculatePlates(
   };
 }
 
-export function formatPlateLabel(weight: number, unit: "lbs" | "kg"): string {
+export function formatPlateLabel(weight: number): string {
   return Number.isInteger(weight) ? `${weight}` : weight.toFixed(1);
 }
