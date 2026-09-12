@@ -116,6 +116,7 @@ export function WorkoutSessionProvider({
   const elapsedSeconds = useElapsedSeconds(isActive ? startedAt : null);
   const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
   const [prCelebration, setPrCelebration] = useState<DetectedPR | null>(null);
+  const activeRestTimer = isActive ? restTimer : null;
   const restEndAtRef = useRef<number | null>(null);
   const restStartedAtRef = useRef<number | null>(null);
   const restTargetRef = useRef<(RestTimerTarget & { totalSeconds: number }) | null>(
@@ -291,7 +292,6 @@ export function WorkoutSessionProvider({
     if (isActive) return;
     restEndAtRef.current = null;
     restStartedAtRef.current = null;
-    setRestTimer(null);
     if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
       navigator.mediaSession.metadata = null;
       navigator.mediaSession.playbackState = "none";
@@ -302,7 +302,7 @@ export function WorkoutSessionProvider({
     <WorkoutSessionContext.Provider
       value={{
         elapsedSeconds,
-        restTimer,
+        restTimer: activeRestTimer,
         defaultRestSeconds,
         existingPRs,
         startRestTimer,

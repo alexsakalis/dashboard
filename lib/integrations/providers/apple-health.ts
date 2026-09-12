@@ -1,4 +1,4 @@
-import type { ProviderDefinition, SyncContext, SyncResult } from "@/lib/integrations/types";
+import type { ProviderDefinition, SyncResult } from "@/lib/integrations/types";
 import type { Integration } from "@/types";
 
 /**
@@ -22,7 +22,7 @@ export const appleHealthProvider: ProviderDefinition = {
     return integration.enabled !== false;
   },
 
-  async sync(_ctx: SyncContext): Promise<SyncResult> {
+  async sync(): Promise<SyncResult> {
     return {
       provider: "apple_health",
       status: "skipped",

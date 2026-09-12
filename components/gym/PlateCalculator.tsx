@@ -100,14 +100,14 @@ export function PlateCalculator({
                   Per side
                 </p>
                 <p className="text-2xl font-bold tabular-nums">
-                  {formatPlateLabel(result.perSideWeight, unit)}{" "}
+                  {formatPlateLabel(result.perSideWeight)}{" "}
                   <span className="text-base font-normal text-muted-foreground">{unit}</span>
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Loaded</p>
                 <p className="font-semibold tabular-nums">
-                  {formatPlateLabel(result.loadedWeight, unit)} {unit}
+                  {formatPlateLabel(result.loadedWeight)} {unit}
                 </p>
               </div>
             </div>
@@ -129,7 +129,7 @@ export function PlateCalculator({
 
             {!result.isExact && (
               <p className="text-sm text-amber-600">
-                Cannot load exactly {formatPlateLabel(result.targetWeight, unit)} {unit} with
+                Cannot load exactly {formatPlateLabel(result.targetWeight)} {unit} with
                 standard plates. Off by {Math.abs(result.remainder)} {unit}.
               </p>
             )}
@@ -164,7 +164,7 @@ function PlateChip({
   return (
     <div className="flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1">
       <span className="text-sm font-semibold tabular-nums">
-        {formatPlateLabel(weight, unit)}
+        {formatPlateLabel(weight)}
       </span>
       <span className="text-xs text-muted-foreground">{unit}</span>
       {count > 1 && (
