@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -180,10 +179,7 @@ export function CreditCardFormFields({
             id="due_date"
             name="due_date"
             type="date"
-            defaultValue={
-              defaultValues?.due_date ??
-              format(new Date(), "yyyy-MM-dd")
-            }
+            defaultValue={defaultValues?.due_date ?? ""}
           />
         </div>
       </div>
