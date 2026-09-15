@@ -49,10 +49,13 @@ import type {
 
 let cachedUsesFullGymSchema: boolean | null = null;
 
+function markFullGymSchemaUnavailable() {
+  cachedUsesFullGymSchema = false;
+}
+
 async function resolveWorkoutSelect(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<string> {
-  if (cachedUsesFullGymSchema === false) return LEGACY_WORKOUT_SELECT;
   if (cachedUsesFullGymSchema === true) return FULL_WORKOUT_SELECT;
 
   const { error } = await supabase
@@ -60,8 +63,18 @@ async function resolveWorkoutSelect(
     .select(FULL_WORKOUT_SELECT)
     .limit(1);
 
-  cachedUsesFullGymSchema = !isMissingSchemaError(error);
-  return cachedUsesFullGymSchema ? FULL_WORKOUT_SELECT : LEGACY_WORKOUT_SELECT;
+  if (isMissingSchemaError(error)) {
+    // PostgREST schema-cache misses can be transient, so never cache legacy
+    // fallback as a permanent process-wide decision.
+    markFullGymSchemaUnavailable();
+    return LEGACY_WORKOUT_SELECT;
+  }
+
+  if (!error) {
+    cachedUsesFullGymSchema = true;
+  }
+
+  return FULL_WORKOUT_SELECT;
 }
 
 function revalidateGymPaths(workoutId?: string) {
@@ -112,7 +125,7 @@ export async function getWorkouts(filters: WorkoutFilters = {}) {
 
   let { data, error } = await query;
   if (error && isMissingSchemaError(error)) {
-    cachedUsesFullGymSchema = false;
+    markFullGymSchemaUnavailable();
     let legacyQuery = supabase
       .from("workouts")
       .select(LEGACY_WORKOUT_SELECT)
@@ -176,7 +189,7 @@ export async function getWorkout(id: string) {
     .single();
 
   if (error && isMissingSchemaError(error)) {
-    cachedUsesFullGymSchema = false;
+    markFullGymSchemaUnavailable();
     ({ data, error } = await supabase
       .from("workouts")
       .select(LEGACY_WORKOUT_SELECT)
@@ -212,7 +225,7 @@ export async function getLastWorkoutBySplit(
 
   let { data, error } = await query.maybeSingle();
   if (error && isMissingSchemaError(error)) {
-    cachedUsesFullGymSchema = false;
+    markFullGymSchemaUnavailable();
     ({ data, error } = await supabase
       .from("workouts")
       .select(LEGACY_WORKOUT_SELECT)
@@ -269,7 +282,7 @@ export async function getExerciseHistory(exerciseName: string, limit = 20) {
     .limit(limit * 3);
 
   if (error && isMissingSchemaError(error)) {
-    cachedUsesFullGymSchema = false;
+    markFullGymSchemaUnavailable();
     const { data: legacyData, error: legacyError } = await supabase
       .from("workouts")
       .select(LEGACY_WORKOUT_SELECT)
@@ -1374,7 +1387,7 @@ export async function getLastWorkoutByMuscleGroup(muscleGroup: string) {
     .maybeSingle();
 
   if (error && isMissingSchemaError(error)) {
-    cachedUsesFullGymSchema = false;
+    markFullGymSchemaUnavailable();
     ({ data, error } = await supabase
       .from("workouts")
       .select(LEGACY_WORKOUT_SELECT)
