@@ -304,6 +304,10 @@ export async function updateCreditCard(cardId: string, formData: FormData) {
   const raw = formDataToObject(formData);
   const parsed = creditCardUpdateSchema.parse(raw);
 
+  if (isSummaryCardName(parsed.card_name)) {
+    throw new Error("That name is reserved for totals, not a card.");
+  }
+
   let openingBalance = parsed.opening_balance ?? existing.card.opening_balance;
 
   if (
