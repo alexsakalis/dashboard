@@ -35,6 +35,13 @@ export function getUtilization(
   return Math.min(1, effectiveBalance / creditLimit);
 }
 
+export function isArchivedClosedCard(
+  cardStatus: CreditCard["card_status"],
+  effectiveBalance: number,
+): boolean {
+  return cardStatus === "closed" && effectiveBalance <= 0;
+}
+
 export function getDaysUntilDue(dueDate: string | null, today = new Date()): number | null {
   if (!dueDate) return null;
   return differenceInCalendarDays(parseISO(dueDate), startOfDay(today));
@@ -124,6 +131,7 @@ export function filterActivePayableCards(
 ): Array<{ card: CreditCard; effectiveBalance: number }> {
   return cards.filter(
     ({ card, effectiveBalance }) =>
-      card.card_status !== "closed" && effectiveBalance > 0,
+      !isArchivedClosedCard(card.card_status, effectiveBalance) &&
+      effectiveBalance > 0,
   );
 }

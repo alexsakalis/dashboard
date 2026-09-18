@@ -6,6 +6,7 @@ import type {
 import {
   filterActivePayableCards,
   getDaysUntilDue,
+  isArchivedClosedCard,
   isDueSoon,
   isHighUtilization,
 } from "@/lib/finance/calculations";
@@ -14,7 +15,11 @@ function buildPayable(
   enriched: EnrichedCreditCard[],
 ): Array<EnrichedCreditCard & { effectiveBalance: number }> {
   return enriched
-    .filter((e) => e.card.card_status !== "closed" && e.effectiveBalance > 0)
+    .filter(
+      (e) =>
+        !isArchivedClosedCard(e.card.card_status, e.effectiveBalance) &&
+        e.effectiveBalance > 0,
+    )
     .map((e) => ({ ...e, effectiveBalance: e.effectiveBalance }));
 }
 

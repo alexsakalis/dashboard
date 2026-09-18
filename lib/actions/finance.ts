@@ -11,7 +11,11 @@ import {
   enrichCreditCards,
   toLegacySummary,
 } from "@/lib/finance/enrich";
-import { getEffectiveBalance, computeOpeningBalanceForTarget } from "@/lib/finance/calculations";
+import {
+  computeOpeningBalanceForTarget,
+  getEffectiveBalance,
+  isArchivedClosedCard,
+} from "@/lib/finance/calculations";
 import {
   creditCardFormSchema,
   creditCardUpdateSchema,
@@ -368,8 +372,12 @@ export async function createPayment(formData: FormData) {
 
   const existing = await getCreditCardById(parsed.card_id);
   if (!existing) throw new Error("Card not found");
-  if (existing.card.card_status === "closed") {
-    throw new Error("Cannot add payments to a closed card");
+  const effectiveBalance = getEffectiveBalance(
+    existing.card.opening_balance,
+    existing.payments,
+  );
+  if (isArchivedClosedCard(existing.card.card_status, effectiveBalance)) {
+    throw new Error("Cannot add payments to a closed card with no balance");
   }
 
   const { error } = await supabase.from("credit_card_payments").insert({
