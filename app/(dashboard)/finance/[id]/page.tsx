@@ -23,6 +23,7 @@ import {
   getCardStatusLabel,
   getCardStatusVariant,
 } from "@/lib/finance/format";
+import { isArchivedClosedCard } from "@/lib/finance/calculations";
 
 async function CardDetail({ id }: { id: string }) {
   const entry = await getEnrichedCreditCard(id);
@@ -45,7 +46,10 @@ async function CardDetail({ id }: { id: string }) {
           entry.card.credit_limit,
         );
 
-  const isClosed = entry.card.card_status === "closed";
+  const paymentsLocked = isArchivedClosedCard(
+    entry.card.card_status,
+    entry.effectiveBalance,
+  );
   const subtitle = [
     entry.card.provider,
     entry.card.last_four ? `•••• ${entry.card.last_four}` : null,
@@ -107,12 +111,12 @@ async function CardDetail({ id }: { id: string }) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">Payments</CardTitle>
-            <AddPaymentDialog cardId={entry.card.id} disabled={isClosed} />
+            <AddPaymentDialog cardId={entry.card.id} disabled={paymentsLocked} />
           </CardHeader>
           <CardContent>
             <PaymentHistoryList
               payments={entry.payments}
-              readOnly={isClosed}
+              readOnly={paymentsLocked}
             />
           </CardContent>
         </Card>

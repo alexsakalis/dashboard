@@ -12,6 +12,7 @@ import {
   getProgressPercent,
   getRemainingMinimum,
   getUtilization,
+  isArchivedClosedCard,
   isDueSoon,
   isHighUtilization,
   isNearLimit,
@@ -31,7 +32,10 @@ export function enrichCreditCard(
   referenceDate = new Date(),
 ): EnrichedCreditCard {
   const effectiveBalance = getEffectiveBalance(card.opening_balance, payments);
-  const utilization = getUtilization(effectiveBalance, card.credit_limit);
+  const hasOpenCreditLine = card.card_status !== "closed";
+  const utilization = hasOpenCreditLine
+    ? getUtilization(effectiveBalance, card.credit_limit)
+    : null;
   const cycle = getBillingCycle(card, referenceDate);
   const paidThisCycle = getPaidThisCycle(payments, cycle);
   const paidThisMonth = getPaidThisMonth(payments, referenceDate);
@@ -43,7 +47,9 @@ export function enrichCreditCard(
     card,
     payments,
     effectiveBalance,
-    availableCredit: getAvailableCredit(effectiveBalance, card.credit_limit),
+    availableCredit: hasOpenCreditLine
+      ? getAvailableCredit(effectiveBalance, card.credit_limit)
+      : null,
     utilization,
     daysUntilDue: getDaysUntilDue(card.due_date, referenceDate),
     isDueSoon: isDueSoon(card.due_date, referenceDate),
@@ -90,29 +96,34 @@ export function buildPortfolioSummary(
   let dueSoonCount = 0;
   let highUtilizationCount = 0;
   let nearLimitCount = 0;
+  let utilizationDebt = 0;
 
   for (const entry of enriched) {
-    if (entry.card.card_status === "closed") continue;
+    if (isArchivedClosedCard(entry.card.card_status, entry.effectiveBalance)) {
+      continue;
+    }
 
     totalDebt += entry.effectiveBalance;
     paidThisMonth += entry.paidThisMonth;
 
-    if (entry.card.credit_limit) {
+    const hasOpenCreditLine = entry.card.card_status !== "closed";
+    if (hasOpenCreditLine && entry.card.credit_limit) {
       totalLimits += entry.card.credit_limit;
       totalAvailableCredit += entry.availableCredit ?? 0;
+      utilizationDebt += entry.effectiveBalance;
     }
 
-    if (entry.card.card_status === "active" && entry.effectiveBalance > 0) {
+    if (entry.card.card_status !== "paid_off" && entry.effectiveBalance > 0) {
       totalMinimumDue += Number(entry.card.minimum_payment ?? 0);
     }
 
-    if (entry.isDueSoon) dueSoonCount += 1;
-    if (entry.isHighUtilization) highUtilizationCount += 1;
-    if (entry.isNearLimit) nearLimitCount += 1;
+    if (entry.effectiveBalance > 0 && entry.isDueSoon) dueSoonCount += 1;
+    if (hasOpenCreditLine && entry.isHighUtilization) highUtilizationCount += 1;
+    if (hasOpenCreditLine && entry.isNearLimit) nearLimitCount += 1;
   }
 
   const overallUtilization =
-    totalLimits > 0 ? Math.min(1, totalDebt / totalLimits) : null;
+    totalLimits > 0 ? Math.min(1, utilizationDebt / totalLimits) : null;
 
   const remainingDueThisMonth = Math.max(0, totalMinimumDue - paidThisMonth);
 
@@ -124,7 +135,9 @@ export function buildPortfolioSummary(
     totalMinimumDue,
     paidThisMonth,
     remainingDueThisMonth,
-    cardCount: enriched.filter((e) => e.card.card_status !== "closed").length,
+    cardCount: enriched.filter(
+      (e) => !isArchivedClosedCard(e.card.card_status, e.effectiveBalance),
+    ).length,
     dueSoonCount,
     highUtilizationCount,
     nearLimitCount,
