@@ -3,7 +3,6 @@ import { refreshDashboardSummary } from "@/lib/integrations/dashboard/update-das
 import {
   createSkippedLog,
   finishSyncLog,
-  logSyncError,
   startSyncLog,
   updateIntegrationStatus,
 } from "@/lib/integrations/logging/sync-log";
@@ -17,6 +16,43 @@ import { createAdminClient } from "@/lib/server/supabase-admin";
 import type { Integration } from "@/types";
 
 const USER_CONCURRENCY = 5;
+
+async function finishLogSafely(
+  supabase: SupabaseClient,
+  logId: string,
+  result: SyncResult,
+): Promise<void> {
+  try {
+    await finishSyncLog(supabase, logId, result);
+  } catch (err) {
+    console.error("Failed to finish sync log:", err);
+  }
+}
+
+async function updateIntegrationStatusSafely(
+  supabase: SupabaseClient,
+  integrationId: string,
+  result: SyncResult,
+): Promise<void> {
+  try {
+    await updateIntegrationStatus(supabase, integrationId, result);
+  } catch (err) {
+    console.error("Failed to update integration status:", err);
+  }
+}
+
+function syncErrorResult(
+  provider: string,
+  err: unknown,
+  startedAt: number,
+): SyncResult {
+  return {
+    provider,
+    status: "error",
+    message: err instanceof Error ? err.message : "Sync failed",
+    durationMs: Date.now() - startedAt,
+  };
+}
 
 async function runIntegrationSync(
   supabase: SupabaseClient,
@@ -56,42 +92,31 @@ async function runIntegrationSync(
   }
 
   const startedAt = Date.now();
-  let logId: string;
+  let logId: string | null = null;
 
   try {
     logId = await startSyncLog(supabase, integration, integration.provider);
   } catch (err) {
     console.error("Failed to start sync log:", err);
-    return providerDef.sync({
-      integration,
-      supabase,
-      userId: integration.user_id,
-      trigger: trigger ?? "cron",
-    });
   }
 
+  let result: SyncResult;
   try {
-    const result = await providerDef.sync({
+    result = await providerDef.sync({
       integration,
       supabase,
       userId: integration.user_id,
       trigger: trigger ?? "cron",
     });
-
-    await finishSyncLog(supabase, logId, result);
-    await updateIntegrationStatus(supabase, integration.id, result);
-    return result;
   } catch (err) {
-    const result = await logSyncError(
-      supabase,
-      logId,
-      integration.provider,
-      err,
-      startedAt,
-    );
-    await updateIntegrationStatus(supabase, integration.id, result);
-    return result;
+    result = syncErrorResult(integration.provider, err, startedAt);
   }
+
+  if (logId) {
+    await finishLogSafely(supabase, logId, result);
+  }
+  await updateIntegrationStatusSafely(supabase, integration.id, result);
+  return result;
 }
 
 export async function runIntegrationsForUser(

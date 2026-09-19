@@ -1,7 +1,7 @@
 import { fetchOuraData } from "@/lib/integrations/oura/client";
 import { isOuraOAuthConfigured } from "@/lib/integrations/oura/oauth";
 import type { ProviderDefinition, SyncContext, SyncResult } from "@/lib/integrations/types";
-import { isReauthError } from "@/lib/integrations/types";
+import { isIntegrationSyncable, isReauthError } from "@/lib/integrations/types";
 import type { Integration } from "@/types";
 
 async function syncOuraData(
@@ -64,7 +64,7 @@ export const ouraProvider: ProviderDefinition = {
   },
 
   isEnabled(integration: Integration) {
-    return integration.enabled !== false && integration.status !== "error";
+    return isIntegrationSyncable(integration);
   },
 
   async sync(ctx: SyncContext): Promise<SyncResult> {

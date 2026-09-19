@@ -5,7 +5,7 @@ import {
   isGoogleOAuthConfigured,
 } from "@/lib/integrations/google/client";
 import type { ProviderDefinition, SyncContext, SyncResult } from "@/lib/integrations/types";
-import { isReauthError } from "@/lib/integrations/types";
+import { isIntegrationSyncable, isReauthError } from "@/lib/integrations/types";
 import type { Integration } from "@/types";
 
 async function persistGoogleTokens(
@@ -87,7 +87,7 @@ export const googleCalendarProvider: ProviderDefinition = {
   },
 
   isEnabled(integration: Integration) {
-    return integration.enabled !== false && integration.status !== "error";
+    return isIntegrationSyncable(integration);
   },
 
   async sync(ctx: SyncContext): Promise<SyncResult> {

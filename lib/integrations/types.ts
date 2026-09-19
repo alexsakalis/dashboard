@@ -52,6 +52,12 @@ export interface RunSummary {
   errors: string[];
 }
 
+export function isIntegrationSyncable(
+  integration: Pick<Integration, "enabled" | "status">,
+): boolean {
+  return integration.enabled !== false && integration.status !== "reauth_required";
+}
+
 export function isReauthError(message: string): boolean {
   const lower = message.toLowerCase();
   return (

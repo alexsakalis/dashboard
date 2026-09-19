@@ -1,4 +1,5 @@
 import type { ProviderDefinition, SyncContext, SyncResult } from "@/lib/integrations/types";
+import { isIntegrationSyncable } from "@/lib/integrations/types";
 import type { Integration } from "@/types";
 
 /**
@@ -19,7 +20,7 @@ export const appleHealthProvider: ProviderDefinition = {
   },
 
   isEnabled(integration: Integration) {
-    return integration.enabled !== false;
+    return isIntegrationSyncable(integration);
   },
 
   async sync(_ctx: SyncContext): Promise<SyncResult> {
