@@ -9,26 +9,57 @@ import {
 } from "@/lib/scoring/daily-score";
 import type { TaskPriority } from "@/types";
 
-async function getOrCreateDailyScore(userId: string, date: string) {
+async function syncDailyScoreFromEvents(userId: string, date: string) {
   const supabase = await createClient();
 
-  const { data: existing } = await supabase
-    .from("daily_scores")
-    .select("*")
+  const { data: events, error: eventsError } = await supabase
+    .from("score_events")
+    .select("event_type, points")
     .eq("user_id", userId)
-    .eq("date", date)
-    .maybeSingle();
+    .eq("date", date);
 
-  if (existing) return existing;
+  if (eventsError) throw eventsError;
 
-  const { data, error } = await supabase
-    .from("daily_scores")
-    .insert({ user_id: userId, date })
-    .select()
-    .single();
+  const totals = (events ?? []).reduce(
+    (acc, event) => {
+      const points = event.points ?? 0;
+      acc.total_score += points;
+
+      if (
+        event.event_type === "task_complete" ||
+        event.event_type === "recurring_bonus"
+      ) {
+        acc.task_points += points;
+        acc.tasks_completed += 1;
+      } else if (event.event_type === "habit_complete") {
+        acc.habit_points += points;
+        acc.habits_completed += 1;
+      } else if (event.event_type === "streak_bonus") {
+        acc.streak_bonus += points;
+      }
+
+      return acc;
+    },
+    {
+      task_points: 0,
+      habit_points: 0,
+      streak_bonus: 0,
+      total_score: 0,
+      tasks_completed: 0,
+      habits_completed: 0,
+    },
+  );
+
+  const { error } = await supabase.from("daily_scores").upsert(
+    {
+      user_id: userId,
+      date,
+      ...totals,
+    },
+    { onConflict: "user_id,date" },
+  );
 
   if (error) throw error;
-  return data;
 }
 
 export async function awardTaskPoints(
@@ -42,7 +73,7 @@ export async function awardTaskPoints(
   const points =
     getTaskPoints(priority) + (hasRecurrence ? RECURRING_BONUS_POINTS : 0);
 
-  await supabase.from("score_events").insert({
+  const { error: eventError } = await supabase.from("score_events").insert({
     user_id: userId,
     date: today,
     event_type: hasRecurrence ? "recurring_bonus" : "task_complete",
@@ -50,21 +81,16 @@ export async function awardTaskPoints(
     points,
   });
 
-  const dailyScore = await getOrCreateDailyScore(userId, today);
+  if (eventError) throw eventError;
 
-  await supabase
-    .from("daily_scores")
-    .update({
-      task_points: dailyScore.task_points + points,
-      total_score: dailyScore.total_score + points,
-      tasks_completed: dailyScore.tasks_completed + 1,
-    })
-    .eq("id", dailyScore.id);
+  await syncDailyScoreFromEvents(userId, today);
 
-  await supabase
+  const { error: taskError } = await supabase
     .from("tasks")
     .update({ points_awarded: points })
     .eq("id", taskId);
+
+  if (taskError) throw taskError;
 
   return points;
 }
@@ -80,7 +106,7 @@ export async function awardHabitPoints(
   const streakBonus = calculateStreakBonus(streakDays);
   const totalPoints = pointsPerCompletion + streakBonus;
 
-  await supabase.from("score_events").insert([
+  const { error: eventError } = await supabase.from("score_events").insert([
     {
       user_id: userId,
       date: today,
@@ -101,19 +127,42 @@ export async function awardHabitPoints(
       : []),
   ]);
 
-  const dailyScore = await getOrCreateDailyScore(userId, today);
+  if (eventError) throw eventError;
 
-  await supabase
-    .from("daily_scores")
-    .update({
-      habit_points: dailyScore.habit_points + pointsPerCompletion,
-      streak_bonus: dailyScore.streak_bonus + streakBonus,
-      total_score: dailyScore.total_score + totalPoints,
-      habits_completed: dailyScore.habits_completed + 1,
-    })
-    .eq("id", dailyScore.id);
+  await syncDailyScoreFromEvents(userId, today);
 
   return totalPoints;
+}
+
+export async function revokeHabitPoints(userId: string, habitId: string) {
+  const supabase = await createClient();
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const { data: events, error: fetchError } = await supabase
+    .from("score_events")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("date", today)
+    .eq("reference_id", habitId)
+    .in("event_type", ["habit_complete", "streak_bonus"]);
+
+  if (fetchError) throw fetchError;
+  if (!events?.length) {
+    await syncDailyScoreFromEvents(userId, today);
+    return;
+  }
+
+  const { error: deleteError } = await supabase
+    .from("score_events")
+    .delete()
+    .in(
+      "id",
+      events.map((event) => event.id),
+    );
+
+  if (deleteError) throw deleteError;
+
+  await syncDailyScoreFromEvents(userId, today);
 }
 
 export async function getTodayScore(userId: string) {
