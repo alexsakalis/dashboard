@@ -8,6 +8,7 @@
     "check-env": "node scripts/check-env.mjs",
     "build": "npm run generate-icons && next build",
     "start": "next start",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "lint": "eslint",
     "create-user": "node scripts/create-user.mjs"
   },

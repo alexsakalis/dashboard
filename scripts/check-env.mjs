@@ -17,6 +17,7 @@ const REQUIRED_KEYS = [
 ];
 
 const OPTIONAL_ALIASES = ["SUPABASE_URL"];
+const REQUIRED_SECRET_KEYS = ["TOKEN_ENCRYPTION_KEY", "CRON_SECRET"];
 
 function loadEnvFile(path) {
   const env = {};
@@ -36,10 +37,19 @@ function loadEnvFile(path) {
 function main() {
   const env = loadEnvFile(".env.local");
   const missing = REQUIRED_KEYS.filter((key) => !env[key]?.trim());
+  const placeholderSecrets = REQUIRED_SECRET_KEYS.filter((key) =>
+    env[key]?.includes("your-"),
+  );
 
   if (missing.length > 0) {
     console.error("Missing keys in .env.local:");
     for (const key of missing) console.error(`  - ${key}`);
+    process.exit(1);
+  }
+
+  if (placeholderSecrets.length > 0) {
+    console.error("Replace placeholder secret values in .env.local:");
+    for (const key of placeholderSecrets) console.error(`  - ${key}`);
     process.exit(1);
   }
 

@@ -1,13 +1,11 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import { getTokenEncryptionSecret } from "@/lib/env";
 
 const ALGORITHM = "aes-256-gcm";
 const ENCRYPTED_TOKEN_PATTERN = /^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/i;
 
 function getKey(): Buffer {
-  const secret = process.env.TOKEN_ENCRYPTION_KEY?.trim();
-  if (!secret || secret.includes("your-")) {
-    throw new Error("TOKEN_ENCRYPTION_KEY is not set");
-  }
+  const secret = getTokenEncryptionSecret();
   return scryptSync(secret, "dashboard-salt", 32);
 }
 
@@ -62,11 +60,7 @@ export function decryptIntegrationToken(stored: string): string {
 }
 
 export function encryptTokenSafe(plaintext: string): string {
-  try {
-    return encryptToken(plaintext);
-  } catch {
-    return plaintext;
-  }
+  return encryptToken(plaintext);
 }
 
 export function decryptTokenSafe(ciphertext: string): string {
