@@ -1274,7 +1274,7 @@ export async function updateWorkoutTemplate(
     exercises,
   });
 
-  const { error } = await supabase
+  const { data: template, error } = await supabase
     .from("workout_templates")
     .update({
       name: parsed.name,
@@ -1283,9 +1283,13 @@ export async function updateWorkoutTemplate(
       exercises: parsed.exercises,
     })
     .eq("id", templateId)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("is_system", false)
+    .select("id")
+    .maybeSingle();
 
   if (error) throw error;
+  if (!template) throw new Error("Template not found");
 
   await supabase
     .from("workout_template_exercises")
