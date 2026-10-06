@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth";
 import { getGoogleAuthUrl } from "@/lib/integrations/google/client";
 import { getOAuthBaseUrl } from "@/lib/env";
 
 export async function GET(request: Request) {
+  await requireUser();
+
   const appUrl = getOAuthBaseUrl(request);
   const oauthBaseUrl = appUrl;
 

@@ -82,6 +82,9 @@ export async function requireUser() {
   if (!user) {
     redirect("/login");
   }
+  if (!isEmailAllowed(user.email ?? "")) {
+    redirect("/login?error=unauthorized");
+  }
   return user;
 }
 
