@@ -28,9 +28,9 @@ export async function GET(request: Request) {
     );
   }
 
-  try {
-    await requireUser();
+  await requireUser();
 
+  try {
     const tokens = await exchangeOuraCode(code, oauthBaseUrl);
     if (!tokens.refreshToken) {
       return NextResponse.redirect(
