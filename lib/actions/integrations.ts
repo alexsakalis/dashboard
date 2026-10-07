@@ -7,7 +7,7 @@ import { refreshDashboardSummary } from "@/lib/integrations/dashboard/update-das
 import { runIntegrationsForUser } from "@/lib/integrations/runner";
 import { syncOuraForUserId } from "@/lib/integrations/oura/sync";
 import { syncGoogleCalendarForUserId } from "@/lib/integrations/google/sync";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { IntegrationProvider } from "@/types";
 
 export async function getIntegrations() {
@@ -36,7 +36,7 @@ export async function saveOuraIntegration(
   expiresAt: string,
 ) {
   const user = await requireUser();
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
 
   const { error } = await supabase.from("integrations").upsert(
     {
@@ -91,7 +91,7 @@ export async function saveGoogleIntegration(
   config: Record<string, unknown>,
 ) {
   const user = await requireUser();
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
 
   const { error } = await supabase.from("integrations").upsert(
     {
