@@ -182,7 +182,12 @@ export async function refreshDashboardSummary(
       .lte("start_time", endOfDay(now).toISOString())
       .order("start_time")
       .limit(10),
-    supabase.from("integrations").select("*").eq("user_id", userId),
+    supabase
+      .from("integrations")
+      .select(
+        "id, user_id, provider, display_name, enabled, status, last_synced_at, last_success_at, last_message",
+      )
+      .eq("user_id", userId),
     supabase
       .from("integration_sync_logs")
       .select("provider, duration_ms, started_at")
