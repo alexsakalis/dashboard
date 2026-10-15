@@ -169,7 +169,7 @@ export async function refreshDashboardSummary(
       .from("body_weight_logs")
       .select("weight")
       .eq("user_id", userId)
-      .order("logged_at", { ascending: false })
+      .order("logged_date", { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase.from("credit_cards").select("*").eq("user_id", userId),

@@ -650,6 +650,16 @@ export async function createWorkout(formData: FormData) {
       : split
         ? SPLIT_MUSCLE_GROUPS[split]
         : [];
+  const duplicateFromWorkoutId = parsed.duplicate_from_workout_id;
+
+  if (duplicateFromWorkoutId) {
+    const sourceWorkout = await getWorkout(duplicateFromWorkoutId);
+    const sourceSplit =
+      sourceWorkout.split ?? (sourceWorkout.workout_type as WorkoutSplit | null);
+    if (split !== sourceSplit) {
+      throw new Error("Cannot copy exercises from a different workout split");
+    }
+  }
 
   const { data: workout, error } = await supabase
     .from("workouts")
@@ -667,8 +677,8 @@ export async function createWorkout(formData: FormData) {
 
   if (error) throw error;
 
-  if (parsed.duplicate_from_workout_id) {
-    await copyWorkoutExercises(user.id, parsed.duplicate_from_workout_id, workout.id, true);
+  if (duplicateFromWorkoutId) {
+    await copyWorkoutExercises(user.id, duplicateFromWorkoutId, workout.id, true);
   } else if (parsed.template_id) {
     await copyTemplateExercises(user.id, parsed.template_id, workout.id);
   }
@@ -1178,6 +1188,7 @@ export async function completeWorkout(formData: FormData) {
       },
       { onConflict: "user_id,logged_date,source" },
     );
+    if (bodyWeightError) throw bodyWeightError;
   }
 
   const updated = await getWorkout(parsed.workout_id);
