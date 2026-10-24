@@ -1176,7 +1176,7 @@ export async function completeWorkout(formData: FormData) {
         workout_id: parsed.workout_id,
         source: "workout",
       },
-      { onConflict: "user_id,logged_date,source" },
+      { onConflict: "user_id,logged_date,source,workout_id" },
     );
   }
 
@@ -1344,7 +1344,7 @@ export async function logBodyWeight(formData: FormData) {
       workout_id: parsed.workout_id,
       source: "manual",
     },
-    { onConflict: "user_id,logged_date,source" },
+    { onConflict: "user_id,logged_date,source,workout_id" },
   );
 
   if (error) throw error;
