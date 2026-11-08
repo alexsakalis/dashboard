@@ -1190,6 +1190,19 @@ export async function deleteWorkout(workoutId: string) {
   const user = await requireUser();
   const supabase = await createClient();
 
+  const { data: bodyWeightLogs, error: bodyWeightLookupError } = await supabase
+    .from("body_weight_logs")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("workout_id", workoutId)
+    .eq("source", "workout");
+
+  if (bodyWeightLookupError && !isMissingSchemaError(bodyWeightLookupError)) {
+    throw bodyWeightLookupError;
+  }
+
+  const bodyWeightLogIds = bodyWeightLogs?.map((log) => log.id) ?? [];
+
   const { error } = await supabase
     .from("workouts")
     .delete()
@@ -1197,6 +1210,19 @@ export async function deleteWorkout(workoutId: string) {
     .eq("user_id", user.id);
 
   if (error) throw error;
+
+  if (bodyWeightLogIds.length > 0) {
+    const { error: bodyWeightDeleteError } = await supabase
+      .from("body_weight_logs")
+      .delete()
+      .eq("user_id", user.id)
+      .in("id", bodyWeightLogIds);
+
+    if (bodyWeightDeleteError && !isMissingSchemaError(bodyWeightDeleteError)) {
+      throw bodyWeightDeleteError;
+    }
+  }
+
   revalidateGymPaths();
 }
 
