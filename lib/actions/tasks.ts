@@ -26,7 +26,7 @@ export async function getTasks(filter?: "today" | "upcoming" | "recurring" | "al
     .order("priority", { ascending: false });
 
   if (filter === "today") {
-    query = query.or(`due_date.eq.${today},due_date.is.null`).eq("status", "todo");
+    query = query.or(`due_date.lte.${today},due_date.is.null`).eq("status", "todo");
   } else if (filter === "upcoming") {
     query = query.gt("due_date", today).eq("status", "todo");
   } else if (filter === "recurring") {
