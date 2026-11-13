@@ -48,10 +48,7 @@ export function buildDailyBriefing(summary: DashboardSummary): DailyBriefing {
   return {
     greeting: getGreeting(),
     insight: getRecoveryInsight(summary),
-    tasksRemaining: Math.max(
-      0,
-      summary.tasks_due_today - summary.tasks_completed_today,
-    ),
+    tasksRemaining: summary.tasks_due_today,
     tasksCompleted: summary.tasks_completed_today,
     habitsDone: habits.filter((habit) => habit.completed_today).length,
     habitsTotal: habits.length,

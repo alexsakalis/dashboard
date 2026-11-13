@@ -116,6 +116,7 @@ export async function refreshDashboardSummary(
   const [
     healthRes,
     tasksRes,
+    completedTasksRes,
     habitsRes,
     completionsRes,
     scoreRes,
@@ -135,12 +136,19 @@ export async function refreshDashboardSummary(
       .order("source", { ascending: true }),
     supabase
       .from("tasks")
-      .select("*, task_categories(name, color)")
+      .select("*, task_categories(name, color)", { count: "exact" })
       .eq("user_id", userId)
-      .neq("status", "archived")
-      .or(`due_date.eq.${today},due_date.is.null`)
+      .eq("status", "todo")
+      .or(`due_date.lte.${today},due_date.is.null`)
       .order("priority", { ascending: false })
       .limit(20),
+    supabase
+      .from("tasks")
+      .select("id, completed_at")
+      .eq("user_id", userId)
+      .eq("status", "done")
+      .gte("completed_at", startOfDay(now).toISOString())
+      .lte("completed_at", endOfDay(now).toISOString()),
     supabase
       .from("habits")
       .select("*")
@@ -197,12 +205,8 @@ export async function refreshDashboardSummary(
 
   const tasks = tasksRes.data ?? [];
   const todoTasks = tasks.filter((t) => t.status === "todo");
-  const completedToday = tasks.filter(
-    (t) =>
-      t.status === "done" &&
-      t.completed_at &&
-      t.completed_at.startsWith(today),
-  );
+  const openTaskCount = tasksRes.count ?? todoTasks.length;
+  const completedToday = completedTasksRes.data ?? [];
 
   const habits = habitsRes.data ?? [];
   const completedIds = new Set(
@@ -340,7 +344,7 @@ export async function refreshDashboardSummary(
     resting_hr: health?.resting_hr ?? null,
     sleep_duration_min: health?.sleep_duration_min ?? null,
     steps: health?.steps ?? null,
-    tasks_due_today: todoTasks.length,
+    tasks_due_today: openTaskCount,
     tasks_completed_today: completedToday.length,
     habit_score: habitScore,
     daily_score: dailyScore.total_score,
