@@ -9,6 +9,7 @@ import { awardTaskPoints } from "@/lib/scoring/actions";
 import {
   advanceRecurrenceAfterComplete,
   processRecurrenceRulesForUser,
+  recurrenceOccurrenceTaskId,
 } from "@/lib/tasks/recurrence";
 import type { TaskPriority, TaskStatus } from "@/types";
 
@@ -80,12 +81,22 @@ export async function createTask(formData: FormData) {
     recurrenceRuleId = rule.id;
   }
 
+  const taskDueDate = dueDate ?? null;
   const { error } = await supabase.from("tasks").insert({
+    ...(recurrenceRuleId
+      ? {
+          id: recurrenceOccurrenceTaskId(
+            user.id,
+            recurrenceRuleId,
+            taskDueDate ?? today(),
+          ),
+        }
+      : {}),
     user_id: user.id,
     title,
     description,
     priority,
-    due_date: dueDate,
+    due_date: taskDueDate,
     category_id: categoryId || null,
     recurrence_rule_id: recurrenceRuleId,
   });
