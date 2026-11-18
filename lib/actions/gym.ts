@@ -1225,33 +1225,18 @@ export async function createWorkoutTemplate(formData: FormData) {
     exercises,
   });
 
-  const { data: template, error } = await supabase
-    .from("workout_templates")
-    .insert({
-      user_id: user.id,
-      name: parsed.name,
-      split: parsed.split,
-      muscle_groups: parsed.muscle_groups ?? [],
-      exercises: parsed.exercises,
-    })
-    .select()
-    .single();
+  const { data: template, error } = await supabase.rpc(
+    "create_workout_template_with_exercises",
+    {
+      p_user_id: user.id,
+      p_name: parsed.name,
+      p_split: parsed.split,
+      p_muscle_groups: parsed.muscle_groups ?? [],
+      p_exercises: parsed.exercises,
+    },
+  );
 
   if (error) throw error;
-
-  await supabase.from("workout_template_exercises").insert(
-    parsed.exercises.map((ex, i) => ({
-      template_id: template.id,
-      user_id: user.id,
-      exercise_library_id: ex.exercise_library_id ?? null,
-      exercise_name: ex.exercise_name,
-      muscle_group: ex.muscle_group,
-      default_sets: ex.default_sets,
-      default_reps: ex.default_reps,
-      sort_order: i,
-      notes: ex.notes,
-    })),
-  );
 
   revalidateGymPaths();
   return template;
@@ -1274,37 +1259,19 @@ export async function updateWorkoutTemplate(
     exercises,
   });
 
-  const { error } = await supabase
-    .from("workout_templates")
-    .update({
-      name: parsed.name,
-      split: parsed.split,
-      muscle_groups: parsed.muscle_groups ?? [],
-      exercises: parsed.exercises,
-    })
-    .eq("id", templateId)
-    .eq("user_id", user.id);
+  const { error } = await supabase.rpc(
+    "update_workout_template_with_exercises",
+    {
+      p_template_id: templateId,
+      p_user_id: user.id,
+      p_name: parsed.name,
+      p_split: parsed.split,
+      p_muscle_groups: parsed.muscle_groups ?? [],
+      p_exercises: parsed.exercises,
+    },
+  );
 
   if (error) throw error;
-
-  await supabase
-    .from("workout_template_exercises")
-    .delete()
-    .eq("template_id", templateId);
-
-  await supabase.from("workout_template_exercises").insert(
-    parsed.exercises.map((ex, i) => ({
-      template_id: templateId,
-      user_id: user.id,
-      exercise_library_id: ex.exercise_library_id ?? null,
-      exercise_name: ex.exercise_name,
-      muscle_group: ex.muscle_group,
-      default_sets: ex.default_sets,
-      default_reps: ex.default_reps,
-      sort_order: i,
-      notes: ex.notes,
-    })),
-  );
 
   revalidateGymPaths();
 }
