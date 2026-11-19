@@ -72,7 +72,10 @@ async function CardDetail({ id }: { id: string }) {
         action={
           <div className="flex items-center gap-1">
             <EditCreditCardDialog entry={entry} />
-            <DeleteCreditCardButton cardId={entry.card.id} />
+            <DeleteCreditCardButton
+              cardId={entry.card.id}
+              cardName={entry.card.card_name}
+            />
           </div>
         }
       />
