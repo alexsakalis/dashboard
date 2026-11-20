@@ -1,5 +1,4 @@
-"use server";
-
+import "server-only";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import {
