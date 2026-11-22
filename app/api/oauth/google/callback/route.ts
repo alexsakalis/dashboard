@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { getOAuthBaseUrl } from "@/lib/env";
 import { exchangeGoogleCode } from "@/lib/integrations/google/client";
-import { saveGoogleIntegration } from "@/lib/actions/integrations";
+import { saveGoogleIntegration } from "@/lib/integrations/save-integration";
 
 export async function GET(request: Request) {
   const appUrl = getOAuthBaseUrl(request);

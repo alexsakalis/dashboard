@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { getOAuthBaseUrl } from "@/lib/env";
 import { exchangeOuraCode } from "@/lib/integrations/oura/oauth";
-import { saveOuraIntegration } from "@/lib/actions/integrations";
+import { saveOuraIntegration } from "@/lib/integrations/save-integration";
 
 export async function GET(request: Request) {
   const appUrl = getOAuthBaseUrl(request);
