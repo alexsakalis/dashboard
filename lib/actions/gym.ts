@@ -1168,10 +1168,12 @@ export async function completeWorkout(formData: FormData) {
   if (error) throw error;
 
   if (parsed.body_weight) {
+    // Completion can be delayed; keep workout-entered weight on the workout day.
+    const loggedDate = format(new Date(workout.started_at), "yyyy-MM-dd");
     const { error: bodyWeightError } = await supabase.from("body_weight_logs").upsert(
       {
         user_id: user.id,
-        logged_date: format(new Date(), "yyyy-MM-dd"),
+        logged_date: loggedDate,
         weight: parsed.body_weight,
         workout_id: parsed.workout_id,
         source: "workout",
