@@ -47,6 +47,31 @@ async function ouraFetch<T>(
   return res.json() as Promise<T>;
 }
 
+interface OuraCollectionResponse<T> {
+  data: T[];
+  next_token?: string | null;
+}
+
+async function ouraFetchCollection<T>(
+  token: string,
+  path: string,
+  params: Record<string, string>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let nextToken: string | null | undefined;
+
+  do {
+    const page = await ouraFetch<OuraCollectionResponse<T>>(token, path, {
+      ...params,
+      ...(nextToken ? { next_token: nextToken } : {}),
+    });
+    rows.push(...page.data);
+    nextToken = page.next_token;
+  } while (nextToken);
+
+  return rows;
+}
+
 export async function fetchOuraData(
   integration: Integration,
   daysBack = 3,
@@ -58,33 +83,29 @@ export async function fetchOuraData(
   const params = { start_date: startDate, end_date: endDate };
 
   const [readiness, dailySleep, sleep, activity, workouts] = await Promise.all([
-    ouraFetch<{ data: Array<{ day: string; score: number | null }> }>(
+    ouraFetchCollection<{ day: string; score: number | null }>(
       token,
       "/v2/usercollection/daily_readiness",
       params,
     ),
-    ouraFetch<{ data: Array<{ day: string; score: number | null }> }>(
+    ouraFetchCollection<{ day: string; score: number | null }>(
       token,
       "/v2/usercollection/daily_sleep",
       params,
     ),
-    ouraFetch<{
-      data: Array<{
-        day: string;
-        total_sleep_duration: number | null;
-        average_hrv: number | null;
-        lowest_heart_rate: number | null;
-      }>;
+    ouraFetchCollection<{
+      day: string;
+      total_sleep_duration: number | null;
+      average_hrv: number | null;
+      lowest_heart_rate: number | null;
     }>(token, "/v2/usercollection/sleep", params),
-    ouraFetch<{
-      data: Array<{
-        day: string;
-        steps: number | null;
-        active_calories: number | null;
-        score: number | null;
-      }>;
+    ouraFetchCollection<{
+      day: string;
+      steps: number | null;
+      active_calories: number | null;
+      score: number | null;
     }>(token, "/v2/usercollection/daily_activity", params),
-    ouraFetch<{ data: Array<{ day: string }> }>(
+    ouraFetchCollection<{ day: string }>(
       token,
       "/v2/usercollection/workout",
       params,
@@ -93,19 +114,19 @@ export async function fetchOuraData(
 
   const dates = new Set<string>();
   [
-    ...readiness.data,
-    ...dailySleep.data,
-    ...sleep.data,
-    ...activity.data,
-    ...workouts.data,
+    ...readiness,
+    ...dailySleep,
+    ...sleep,
+    ...activity,
+    ...workouts,
   ].forEach((item) => dates.add(item.day));
 
   return Array.from(dates).map((date) => {
-    const readinessItem = readiness.data.find((d) => d.day === date);
-    const sleepScoreItem = dailySleep.data.find((d) => d.day === date);
-    const sleepItem = sleep.data.find((d) => d.day === date);
-    const activityItem = activity.data.find((d) => d.day === date);
-    const workoutCount = workouts.data.filter((d) => d.day === date).length;
+    const readinessItem = readiness.find((d) => d.day === date);
+    const sleepScoreItem = dailySleep.find((d) => d.day === date);
+    const sleepItem = sleep.find((d) => d.day === date);
+    const activityItem = activity.find((d) => d.day === date);
+    const workoutCount = workouts.filter((d) => d.day === date).length;
 
     return {
       date,

@@ -4,6 +4,33 @@ import type { ProviderDefinition, SyncContext, SyncResult } from "@/lib/integrat
 import { isReauthError } from "@/lib/integrations/types";
 import type { Integration } from "@/types";
 
+const DEFAULT_OURA_SYNC_LOOKBACK_DAYS = 3;
+const MAX_OURA_SYNC_LOOKBACK_DAYS = 365;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function getOuraSyncLookbackDays(
+  integration: Integration,
+  now = new Date(),
+): number {
+  if (!integration.last_success_at) {
+    return DEFAULT_OURA_SYNC_LOOKBACK_DAYS;
+  }
+
+  const lastSuccess = new Date(integration.last_success_at);
+  if (Number.isNaN(lastSuccess.getTime())) {
+    return DEFAULT_OURA_SYNC_LOOKBACK_DAYS;
+  }
+
+  const elapsedDays = Math.ceil(
+    (now.getTime() - lastSuccess.getTime()) / MS_PER_DAY,
+  );
+
+  return Math.min(
+    MAX_OURA_SYNC_LOOKBACK_DAYS,
+    Math.max(DEFAULT_OURA_SYNC_LOOKBACK_DAYS, elapsedDays),
+  );
+}
+
 async function syncOuraData(
   integration: Integration,
   ctx: SyncContext,
@@ -11,7 +38,8 @@ async function syncOuraData(
   const startedAt = Date.now();
 
   try {
-    const dailyData = await fetchOuraData(integration, 3);
+    const lookbackDays = getOuraSyncLookbackDays(integration);
+    const dailyData = await fetchOuraData(integration, lookbackDays);
 
     for (const day of dailyData) {
       const { error } = await ctx.supabase.from("health_daily_snapshots").upsert(
@@ -42,7 +70,7 @@ async function syncOuraData(
       status: "success",
       message: `Synced ${dailyData.length} day(s) of Oura data`,
       durationMs: Date.now() - startedAt,
-      metadata: { rowsUpserted: dailyData.length },
+      metadata: { rowsUpserted: dailyData.length, lookbackDays },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Oura sync failed";
